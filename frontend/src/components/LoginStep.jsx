@@ -3,14 +3,14 @@ import { motion } from 'framer-motion';
 
 /**
  * Step 1: Login / Authentication screen.
- * Glassmorphism card, glowing elements, sci-fi server background.
+ * Uses inline styles for guaranteed rendering across all builds.
  */
 export default function LoginStep({ onLogin }) {
   const [email, setEmail] = useState('manojkumar@mail.com');
   const [securityKey, setSecurityKey] = useState('password123');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Real-time clock
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -19,7 +19,13 @@ export default function LoginStep({ onLogin }) {
     const updateTime = () => {
       const now = new Date();
       setTimeStr(now.toLocaleTimeString('en-US', { hour12: false }));
-      setDateStr(now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
+      setDateStr(
+        now.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      );
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
@@ -29,16 +35,62 @@ export default function LoginStep({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
     if (!email.trim() || !securityKey.trim()) {
       setError('ALL FIELDS REQUIRED');
       return;
     }
-
     setIsSubmitting(true);
     await new Promise((r) => setTimeout(r, 1800));
     setIsSubmitting(false);
     onLogin({ email });
+  };
+
+  /* ── shared inline style fragments ── */
+  const inputStyle = {
+    width: '100%',
+    background: 'rgba(5, 9, 17, 0.92)',
+    border: '1px solid rgba(27, 42, 58, 0.8)',
+    borderRadius: '14px',
+    padding: '22px 18px 22px 56px',
+    color: '#e2e8f0',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '15px',
+    letterSpacing: '0.04em',
+    outline: 'none',
+    transition: 'border-color 0.3s',
+    boxShadow: 'inset 0 4px 16px rgba(0,0,0,0.8)',
+  };
+
+  const labelStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px',
+    color: 'rgba(0, 180, 216, 0.7)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.15em',
+    marginBottom: '12px',
+    paddingLeft: '4px',
+  };
+
+  const dotStyle = {
+    width: '6px',
+    height: '6px',
+    borderRadius: '50%',
+    background: 'rgba(0, 180, 216, 0.5)',
+    flexShrink: 0,
+  };
+
+  const iconWrapStyle = {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    paddingLeft: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    pointerEvents: 'none',
   };
 
   return (
@@ -47,44 +99,122 @@ export default function LoginStep({ onLogin }) {
       animate={{ opacity: 1, filter: 'blur(0px)' }}
       exit={{ opacity: 0, scale: 1.05 }}
       transition={{ duration: 0.8 }}
-      className="login-container relative w-full h-full text-white"
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        color: '#fff',
+        overflow: 'hidden',
+      }}
     >
-      {/* Background Image Container */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40 mix-blend-screen"
-        style={{ backgroundImage: 'url(/bg-server.png)' }}
+      {/* ── Background layers ── */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'url(/bg-server.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.35,
+          mixBlendMode: 'screen',
+        }}
       />
-      
-      {/* Background gradient overlays to ensure text readability and dark vibe */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#02050E]/90 via-[#070D18]/80 to-[#02050E]/95 z-0 pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,180,255,0.05)_0%,transparent_60%)] z-0 pointer-events-none" />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'linear-gradient(to bottom, rgba(2,5,14,0.92), rgba(7,13,24,0.82), rgba(2,5,14,0.95))',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background:
+            'radial-gradient(ellipse at center, rgba(0,180,255,0.05) 0%, transparent 60%)',
+          pointerEvents: 'none',
+        }}
+      />
 
-      {/* Decorative side HUD text */}
-      <div className="absolute left-8 top-1/3 opacity-30 text-[8px] md:text-[10px] lg:text-xs font-mono leading-relaxed max-w-[200px] lg:max-w-[300px] pointer-events-none z-0">
+      {/* ── Left HUD text ── */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 32,
+          top: '30%',
+          opacity: 0.3,
+          fontSize: '9px',
+          fontFamily: 'var(--font-mono)',
+          lineHeight: 1.8,
+          maxWidth: 220,
+          pointerEvents: 'none',
+          color: '#8892A8',
+        }}
+      >
         <p>SYSTEM.CORE.LOAD: 0x00A78F</p>
         <p>NODE_STATUS: NOMINAL</p>
         <p>THROUGHPUT: 4.88 TBps</p>
-        <br/>
+        <br />
         <p>ENCRYPT_KEY: 2048-BIT RSA</p>
         <p>HANDSHAKE: ESTABLISHED</p>
         <p>SECURE_CHANNEL: ACTIVE</p>
-        <br/>
+        <br />
         <p>WAITING FOR OPERATOR INPUT...</p>
       </div>
 
-      <div className="absolute right-8 top-1/3 opacity-30 text-[8px] md:text-[10px] lg:text-xs font-mono leading-relaxed max-w-[200px] lg:max-w-[300px] pointer-events-none text-right z-0">
+      {/* ── Right HUD text ── */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 32,
+          top: '30%',
+          opacity: 0.3,
+          fontSize: '9px',
+          fontFamily: 'var(--font-mono)',
+          lineHeight: 1.8,
+          maxWidth: 220,
+          pointerEvents: 'none',
+          textAlign: 'right',
+          color: '#8892A8',
+        }}
+      >
         <p>DATACENTER_IP: 192.168.0.224</p>
         <p>ROUTING_TABLE: SYNCED</p>
         <p>LATENCY: 12ms</p>
-        <br/>
+        <br />
         <p>PROCESS_MGR_DAEMON</p>
         <p>PID: 49488 running...</p>
         <p>MEM: 44.2% ALLOCATED</p>
       </div>
 
-      {/* Top Left Status */}
-      <div className="absolute top-6 left-6 md:top-8 md:left-8 z-10 flex items-center gap-4">
-        <div className="w-10 h-10 md:w-14 md:h-14 lg:w-16 lg:h-16 border border-cyan-500/30 bg-cyan-950/40 rounded-lg flex items-center justify-center p-2 lg:p-3 shadow-[0_0_15px_rgba(0,180,255,0.15)]">
+      {/* ── Top-left logo + status ── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 28,
+          left: 28,
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+        }}
+      >
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            border: '1px solid rgba(0,180,216,0.3)',
+            background: 'rgba(8,47,64,0.4)',
+            borderRadius: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 8,
+            boxShadow: '0 0 15px rgba(0,180,255,0.15)',
+          }}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--command-teal)" strokeWidth="1.5">
             <path d="M12 2L2 7l10 5 10-5-10-5z" />
             <path d="M2 17l10 5 10-5" />
@@ -92,43 +222,137 @@ export default function LoginStep({ onLogin }) {
           </svg>
         </div>
         <div>
-          <h2 className="text-sm md:text-lg lg:text-xl font-bold tracking-[0.2em] text-[#e2e8f0]">RAKSHAK AI</h2>
-          <p className="text-[10px] md:text-xs lg:text-sm tracking-widest text-cyan-500/80 mt-1 uppercase">System: ONLINE [Secure]</p>
+          <h2
+            style={{
+              fontSize: 16,
+              fontWeight: 700,
+              letterSpacing: '0.2em',
+              color: '#e2e8f0',
+              margin: 0,
+            }}
+          >
+            RAKSHAK AI
+          </h2>
+          <p
+            style={{
+              fontSize: 10,
+              letterSpacing: '0.15em',
+              color: 'rgba(0,180,216,0.8)',
+              textTransform: 'uppercase',
+              marginTop: 4,
+            }}
+          >
+            System: ONLINE [Secure]
+          </p>
         </div>
       </div>
 
-      {/* Top Right Clock */}
-      <div className="absolute top-6 right-6 md:top-8 md:right-8 z-10 text-right font-mono flex flex-col items-end">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(255,0,0,0.8)]" />
-          <span className="text-[10px] md:text-sm tracking-[0.2em] text-gray-400">LIVE</span>
+      {/* ── Top-right clock ── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 28,
+          right: 28,
+          zIndex: 10,
+          textAlign: 'right',
+          fontFamily: 'var(--font-mono)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 6 }}>
+          <div
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: '#ef4444',
+              boxShadow: '0 0 8px rgba(255,0,0,0.8)',
+              animation: 'pulse-glow 2s ease-in-out infinite',
+            }}
+          />
+          <span style={{ fontSize: 11, letterSpacing: '0.2em', color: '#9ca3af' }}>LIVE</span>
         </div>
-        <p className="text-xs md:text-base lg:text-lg tracking-wider text-gray-300">TIME: {timeStr}</p>
-        <p className="text-[10px] md:text-xs lg:text-sm tracking-wider text-gray-500 mt-1 uppercase">DATE: {dateStr}</p>
+        <p style={{ fontSize: 15, letterSpacing: '0.08em', color: '#d1d5db', margin: 0 }}>
+          TIME: {timeStr}
+        </p>
+        <p
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.08em',
+            color: '#6b7280',
+            marginTop: 4,
+            textTransform: 'uppercase',
+          }}
+        >
+          DATE: {dateStr}
+        </p>
       </div>
 
-      {/* Center Auth Card */}
-      <div className="absolute inset-0 flex items-center justify-center z-10">
-        <motion.div 
+      {/* ── Center auth card ── */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+        }}
+      >
+        <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.6 }}
-          className="auth-card relative p-1 rounded-[32px] w-[90%] max-w-[500px] md:max-w-[650px] lg:max-w-[800px] 2xl:max-w-[950px]"
+          style={{ position: 'relative', width: '92%', maxWidth: 580 }}
         >
-          {/* Connecting lines deco to the globe */}
-          <div className="absolute top-1/2 left-0 -translate-x-[60px] md:-translate-x-[150px] lg:-translate-x-[250px] w-[60px] md:w-[150px] lg:w-[250px] h-[1px] bg-cyan-500/20" />
-          <div className="absolute top-1/2 right-0 translate-x-[60px] md:translate-x-[150px] lg:translate-x-[250px] w-[60px] md:w-[150px] lg:w-[250px] h-[1px] bg-cyan-500/20" />
-          <div className="absolute top-1/2 left-0 -translate-x-[150px] lg:-translate-x-[250px] w-[3px] h-[3px] rounded-full bg-cyan-500/50 hidden md:block" />
-          <div className="absolute top-1/2 right-0 translate-x-[150px] lg:translate-x-[250px] w-[3px] h-[3px] rounded-full bg-cyan-500/50 hidden md:block" />
+          {/* ── Connecting lines ── */}
+          <div style={{ position: 'absolute', top: '50%', left: 0, transform: 'translateX(-120px)', width: 120, height: 1, background: 'rgba(0,180,216,0.2)' }} />
+          <div style={{ position: 'absolute', top: '50%', right: 0, transform: 'translateX(120px)', width: 120, height: 1, background: 'rgba(0,180,216,0.2)' }} />
 
-          {/* Inner Card content */}
-          <div className="bg-[#0b131e]/80 backdrop-blur-xl rounded-[28px] border border-cyan-500/20 px-8 py-10 md:px-14 md:py-16 lg:px-20 lg:py-20 shadow-[0_0_60px_rgba(0,150,255,0.08)] relative overflow-hidden flex flex-col items-center">
-            
-            {/* Top Shine */}
-            <div className="absolute top-0 left-1/4 right-1/4 h-[1px] bg-gradient-to-r from-transparent via-[#00f2ff]/50 to-transparent" />
+          {/* ── Glass card ── */}
+          <div
+            style={{
+              background: 'rgba(11, 19, 30, 0.82)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              borderRadius: 24,
+              border: '1px solid rgba(0,180,216,0.18)',
+              padding: '48px 44px',
+              boxShadow: '0 0 60px rgba(0,150,255,0.06)',
+              position: 'relative',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
+          >
+            {/* Top shine */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: '25%',
+                right: '25%',
+                height: 1,
+                background: 'linear-gradient(90deg, transparent, rgba(0,242,255,0.5), transparent)',
+              }}
+            />
 
-            {/* Logo Logo */}
-            <div className="w-16 h-16 md:w-20 md:h-20 lg:w-24 lg:h-24 bg-gradient-to-b from-[#162e43] to-[#0d1b2a] border border-cyan-500/30 rounded-[20px] md:rounded-[24px] flex items-center justify-center p-3 md:p-4 lg:p-5 mb-6 md:mb-8 shadow-[0_8px_32px_rgba(0,0,0,0.6),inset_0_2px_4px_rgba(0,242,255,0.1)]">
+            {/* ── Logo ── */}
+            <div
+              style={{
+                width: 72,
+                height: 72,
+                background: 'linear-gradient(to bottom, #162e43, #0d1b2a)',
+                border: '1px solid rgba(0,180,216,0.3)',
+                borderRadius: 20,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 14,
+                marginBottom: 24,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.6), inset 0 2px 4px rgba(0,242,255,0.1)',
+              }}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="1.5">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
@@ -136,107 +360,249 @@ export default function LoginStep({ onLogin }) {
               </svg>
             </div>
 
-            <h1 className="text-[22px] md:text-3xl lg:text-4xl font-medium tracking-[0.2em] text-[#e2e8f0] mb-2 md:mb-4">RAKSHAK AI</h1>
-            <p className="text-[10px] md:text-xs lg:text-sm tracking-[0.25em] font-mono text-cyan-500/80 mb-10 md:mb-14 text-center uppercase">Crisis Command Authentication</p>
+            <h1
+              style={{
+                fontSize: 26,
+                fontWeight: 500,
+                letterSpacing: '0.2em',
+                color: '#e2e8f0',
+                marginBottom: 8,
+                textAlign: 'center',
+              }}
+            >
+              RAKSHAK AI
+            </h1>
+            <p
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.25em',
+                fontFamily: 'var(--font-mono)',
+                color: 'rgba(0,180,216,0.8)',
+                marginBottom: 40,
+                textTransform: 'uppercase',
+                textAlign: 'center',
+              }}
+            >
+              Crisis Command Authentication
+            </p>
 
-            <form onSubmit={handleSubmit} className="w-full space-y-8 md:space-y-10 lg:space-y-12">
-              
-              {/* Input Group 1 */}
-              <div>
-                <label className="flex items-center gap-2 text-[10px] md:text-xs lg:text-sm font-mono text-cyan-500/70 mb-3 md:mb-4 uppercase tracking-[0.15em] pl-1">
-                  <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-cyan-500/50" />
+            {/* ── Form ── */}
+            <form onSubmit={handleSubmit} style={{ width: '100%' }}>
+              {/* Email */}
+              <div style={{ marginBottom: 28 }}>
+                <div style={labelStyle}>
+                  <span style={dotStyle} />
                   Operator Email
-                </label>
-                <div className="auth-input-wrapper relative">
-                  <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400 md:w-6 md:h-6">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="12" cy="7" r="4"></circle>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <div style={iconWrapStyle}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.5">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
                     </svg>
                   </div>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="auth-input w-full bg-[#050911]/90 border border-[#1b2a3a] rounded-xl py-5 md:py-6 lg:py-7 pl-14 md:pl-16 pr-4 text-sm md:text-base lg:text-lg font-sans tracking-wide text-gray-200 outline-none focus:border-[#00f2ff]/50 transition-colors shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)]"
                     placeholder="operator@rakshak.ai"
+                    style={inputStyle}
+                    onFocus={(e) => (e.target.style.borderColor = 'rgba(0,242,255,0.5)')}
+                    onBlur={(e) => (e.target.style.borderColor = 'rgba(27,42,58,0.8)')}
                   />
                 </div>
               </div>
 
-              {/* Input Group 2 */}
-              <div className="pt-2 md:pt-4 lg:pt-6">
-                <label className="flex items-center gap-2 text-[10px] md:text-xs lg:text-sm font-mono text-cyan-500/70 mb-3 md:mb-4 uppercase tracking-[0.15em] pl-1">
-                  <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-cyan-500/50" />
+              {/* Security Key */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={labelStyle}>
+                  <span style={dotStyle} />
                   Security Key
-                </label>
-                <div className="auth-input-wrapper relative">
-                  <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gray-400 md:w-6 md:h-6">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <div style={iconWrapStyle}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="1.5">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
                   </div>
                   <input
                     type="password"
                     value={securityKey}
                     onChange={(e) => setSecurityKey(e.target.value)}
-                    className="auth-input w-full bg-[#050911]/90 border border-[#1b2a3a] rounded-xl py-5 md:py-6 lg:py-7 pl-14 md:pl-16 pr-4 text-sm md:text-base lg:text-lg tracking-[0.4em] text-gray-200 outline-none focus:border-[#00f2ff]/50 transition-colors shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)]"
                     placeholder="••••••••••"
+                    style={{ ...inputStyle, letterSpacing: '0.35em' }}
+                    onFocus={(e) => (e.target.style.borderColor = 'rgba(0,242,255,0.5)')}
+                    onBlur={(e) => (e.target.style.borderColor = 'rgba(27,42,58,0.8)')}
                   />
                 </div>
-                <div className="flex justify-end mt-4">
-                  <a href="#" className="text-[10px] md:text-xs lg:text-sm font-sans text-cyan-500/60 hover:text-cyan-400 transition-colors tracking-wide">Forgot Security Key?</a>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                  <a
+                    href="#"
+                    style={{
+                      fontSize: 11,
+                      color: 'rgba(0,180,216,0.55)',
+                      textDecoration: 'none',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    Forgot Security Key?
+                  </a>
                 </div>
               </div>
-              
+
+              {/* Error */}
               {error && (
-                <div className="text-[11px] md:text-sm font-mono text-red-500 text-center bg-red-500/10 border border-red-500/20 py-4 rounded-xl font-medium tracking-wide">
-                  {error}
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontFamily: 'var(--font-mono)',
+                    color: '#ef4444',
+                    textAlign: 'center',
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                    padding: '12px 0',
+                    borderRadius: 12,
+                    marginBottom: 16,
+                    letterSpacing: '0.06em',
+                  }}
+                >
+                  ⚠ {error}
                 </div>
               )}
 
-              {/* Submit Button */}
-              <div className="pt-6 md:pt-10">
+              {/* Submit */}
+              <div style={{ marginTop: 28 }}>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="auth-submit-btn w-full relative group overflow-hidden rounded-xl py-6 md:py-8 lg:py-10 transition-all duration-200 active:scale-[0.98] border border-[#00b4d8]/10"
+                  style={{
+                    width: '100%',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    borderRadius: 14,
+                    padding: '22px 0',
+                    border: '1px solid rgba(0,180,216,0.12)',
+                    cursor: isSubmitting ? 'wait' : 'pointer',
+                    background: 'linear-gradient(to bottom, #112338, #091524, #040a12)',
+                    transition: 'transform 0.15s',
+                  }}
+                  onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(0.98)')}
+                  onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#112338] via-[#091524] to-[#040a12]" />
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#00b4d8] shadow-[0_0_15px_#00b4d8]" />
-                  <div className="absolute top-0 left-[10%] right-[10%] h-[1px] bg-white/10" />
-                  
-                  <div className="relative flex items-center justify-center gap-3">
-                    <span className="text-[14px] md:text-base lg:text-lg font-medium tracking-[0.2em] text-gray-200 mt-px font-sans">
+                  {/* Bottom glow line */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 2,
+                      background: '#00b4d8',
+                      boxShadow: '0 0 15px #00b4d8',
+                    }}
+                  />
+                  {/* Top highlight */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: '10%',
+                      right: '10%',
+                      height: 1,
+                      background: 'rgba(255,255,255,0.08)',
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      position: 'relative',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        letterSpacing: '0.18em',
+                        color: '#d1d5db',
+                        fontFamily: 'var(--font-sans)',
+                      }}
+                    >
                       {isSubmitting ? 'AUTHENTICATING...' : 'READY TO ENGAGE'}
                     </span>
                     {!isSubmitting && (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-300 ml-2 opacity-80 group-hover:translate-x-1 transition-transform md:w-5 md:h-5">
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#d1d5db"
+                        strokeWidth="2.5"
+                        style={{ opacity: 0.85 }}
+                      >
                         <path d="M5 12h14M12 5l7 7-7 7" />
                       </svg>
                     )}
                   </div>
                 </button>
               </div>
-
             </form>
           </div>
         </motion.div>
       </div>
 
-      {/* Bottom Status Panel */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
-        <div className="flex border border-gray-700/50 rounded-full overflow-hidden bg-[#050a11]/80 backdrop-blur pb-px">
-          <div className="px-6 py-2 md:py-3 text-[9px] md:text-[11px] font-mono tracking-[0.2em] text-gray-500 uppercase">
+      {/* ── Bottom status bar ── */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 28,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 10,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            border: '1px solid rgba(107,114,128,0.3)',
+            borderRadius: 999,
+            overflow: 'hidden',
+            background: 'rgba(5,10,17,0.8)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          <div
+            style={{
+              padding: '8px 20px',
+              fontSize: 9,
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '0.18em',
+              color: '#6b7280',
+              textTransform: 'uppercase',
+            }}
+          >
             VERSION 2.5 SECURITY LEVEL 4
           </div>
-          <div className="px-5 py-2 md:py-3 border-l border-gray-700/50 bg-[#1a2c42]/30 text-[9px] md:text-[11px] font-mono tracking-[0.2em] text-[#e2e8f0]">
+          <div
+            style={{
+              padding: '8px 18px',
+              borderLeft: '1px solid rgba(107,114,128,0.3)',
+              background: 'rgba(26,44,66,0.3)',
+              fontSize: 9,
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '0.18em',
+              color: '#e2e8f0',
+            }}
+          >
             [DATA ENCRYPTED]
           </div>
         </div>
       </div>
-      
     </motion.div>
   );
 }
