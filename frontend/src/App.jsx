@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import './App.css';
 import ParticleField from './components/ParticleField';
@@ -17,6 +17,12 @@ import CommandMap from './components/CommandMap';
 export default function App() {
   const [currentStep, setCurrentStep] = useState(1);
   const [userEmail, setUserEmail] = useState('');
+
+  // Wake up backend automatically when frontend is loaded
+  useEffect(() => {
+    fetch("https://rakshak-backend-wbuz.onrender.com/api/health")
+      .catch(err => console.error("Failed to wake backend:", err));
+  }, []);
   const [hospitalityType, setHospitalityType] = useState(null);
 
   /** Step 1 → Step 2: After successful login */
