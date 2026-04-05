@@ -9,8 +9,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+
+app.get('/', (req, res) => {
+  res.send('Rakshak AI Backend is running successfully!');
+});
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 const auditLog = [];
