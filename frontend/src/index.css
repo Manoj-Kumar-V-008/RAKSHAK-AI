@@ -1,0 +1,448 @@
+/* ─── Google Fonts ─── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@import "tailwindcss";
+
+/* ─── CSS Custom Properties ─── */
+:root {
+  --deep-space: #05070A;
+  --deep-space-lighter: #0B0E14;
+  --deep-space-card: #0D121A;
+  --crisis-red: #FF4D4D;
+  --crisis-red-dim: #FF4D4D66;
+  --crisis-red-glow: #FF4D4D33;
+  --command-teal: #00F2FF;
+  --command-teal-dim: #00F2FF66;
+  --command-teal-glow: #00F2FF22;
+  --glass-bg: rgba(19, 25, 36, 0.6);
+  --glass-border: rgba(0, 242, 255, 0.12);
+  --glass-hover-border: rgba(0, 242, 255, 0.35);
+  --text-primary: #E8ECF4;
+  --text-secondary: #8892A8;
+  --text-dim: #4A5568;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+/* ─── Reset & Base ─── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--deep-space);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--deep-space);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--command-teal-dim);
+  border-radius: 3px;
+}
+
+/* ─── Animated Grid Background ─── */
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(0, 242, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 242, 255, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+}
+
+.grid-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0, 242, 255, 0.06) 0%, transparent 60%),
+              radial-gradient(ellipse at 50% 100%, rgba(255, 77, 77, 0.04) 0%, transparent 60%);
+}
+
+/* ─── Glassmorphism Card ─── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+}
+
+.glass-hover:hover {
+  border-color: var(--glass-hover-border);
+  box-shadow: 0 0 30px var(--command-teal-glow), inset 0 0 30px var(--command-teal-glow);
+}
+
+/* ─── Glowing Input ─── */
+.glow-input {
+  background: rgba(11, 14, 20, 0.7);
+  border: 1px solid rgba(0, 242, 255, 0.15);
+  border-radius: 10px;
+  padding: 14px 18px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.glow-input::placeholder {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.glow-input:focus {
+  border-color: var(--command-teal);
+  box-shadow: 0 0 20px var(--command-teal-glow), 0 0 40px rgba(0, 242, 255, 0.05);
+}
+
+/* ─── Glow Button ─── */
+.glow-btn {
+  position: relative;
+  background: linear-gradient(135deg, rgba(0, 242, 255, 0.15), rgba(0, 242, 255, 0.05));
+  border: 1px solid var(--command-teal-dim);
+  border-radius: 10px;
+  padding: 14px 32px;
+  color: var(--command-teal);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.glow-btn::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--command-teal), var(--crisis-red));
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.glow-btn:hover {
+  box-shadow: 0 0 25px var(--command-teal-glow), 0 0 50px rgba(0, 242, 255, 0.08);
+  border-color: var(--command-teal);
+  text-shadow: 0 0 10px var(--command-teal-dim);
+}
+
+.glow-btn:active {
+  transform: scale(0.97);
+}
+
+.glow-btn-red {
+  background: linear-gradient(135deg, rgba(255, 77, 77, 0.15), rgba(255, 77, 77, 0.05));
+  border-color: var(--crisis-red-dim);
+  color: var(--crisis-red);
+}
+
+.glow-btn-red:hover {
+  box-shadow: 0 0 25px var(--crisis-red-glow), 0 0 50px rgba(255, 77, 77, 0.08);
+  border-color: var(--crisis-red);
+  text-shadow: 0 0 10px var(--crisis-red-dim);
+}
+
+/* ─── Terminal-style label ─── */
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* ─── Pulse animation ─── */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ─── Scanning line ─── */
+@keyframes scan-line {
+  0% { top: -2px; }
+  100% { top: 100%; }
+}
+
+.scan-line::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--command-teal), transparent);
+  animation: scan-line 3s linear infinite;
+  opacity: 0.3;
+}
+
+/* ─── Hospitality Card ─── */
+.hospitality-card {
+  cursor: pointer;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hospitality-card:hover {
+  transform: translateY(-6px);
+}
+
+.hospitality-card.selected {
+  border-color: var(--command-teal) !important;
+  box-shadow: 0 0 30px var(--command-teal-glow), inset 0 0 30px var(--command-teal-glow);
+}
+
+/* ─── Map container ─── */
+.map-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/* ─── Status Badge ─── */
+.status-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+/* ─── Particle animation ─── */
+@keyframes float-particle {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  50% { transform: translateY(-120px) translateX(30px); }
+}
+
+/* ─── Glass Dark (high-contrast overlays for lighter maps) ─── */
+.glass-dark {
+  background: rgba(11, 14, 20, 0.88);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(0, 242, 255, 0.1);
+  border-radius: 14px;
+}
+
+/* ─── Leaflet Theme Overrides ─── */
+.leaflet-popup-dark .leaflet-popup-content-wrapper {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.leaflet-popup-dark .leaflet-popup-content {
+  margin: 0;
+}
+
+.leaflet-popup-dark .leaflet-popup-tip {
+  background: #131924;
+  border: 1px solid rgba(0, 242, 255, 0.15);
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+.leaflet-control-zoom a {
+  background: rgba(11, 14, 20, 0.9) !important;
+  color: var(--command-teal) !important;
+  border-color: rgba(0, 242, 255, 0.1) !important;
+  backdrop-filter: blur(12px);
+  width: 34px !important;
+  height: 34px !important;
+  line-height: 34px !important;
+  font-size: 16px !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: rgba(11, 14, 20, 0.95) !important;
+  color: var(--command-teal) !important;
+  border-color: rgba(0, 242, 255, 0.3) !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(11, 14, 20, 0.75) !important;
+  color: var(--text-dim) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 9px !important;
+  border-radius: 6px 0 0 0 !important;
+  padding: 2px 8px !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--text-secondary) !important;
+}
+
+/* ─── Services Panel Scrollbar ─── */
+#services-panel ::-webkit-scrollbar {
+  width: 4px;
+}
+#services-panel ::-webkit-scrollbar-track {
+  background: transparent;
+}
+#services-panel ::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 255, 0.15);
+  border-radius: 2px;
+}
+#services-panel ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 242, 255, 0.3);
+}
+
+/* ─── AI Agent Panel Scrollbar ─── */
+#ai-agent-panel ::-webkit-scrollbar {
+  width: 4px;
+}
+#ai-agent-panel ::-webkit-scrollbar-track {
+  background: transparent;
+}
+#ai-agent-panel ::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 255, 0.12);
+  border-radius: 2px;
+}
+#ai-agent-panel ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 242, 255, 0.25);
+}
+
+/* ─── CRT Scanline Overlay ─── */
+.agent-scanline {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.agent-scanline::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 242, 255, 0.015) 2px,
+    rgba(0, 242, 255, 0.015) 4px
+  );
+}
+
+.agent-scanline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 242, 255, 0.04) 0%,
+    transparent 100%
+  );
+  animation: crt-scan 4s linear infinite;
+}
+
+@keyframes crt-scan {
+  0% { top: -80px; }
+  100% { top: 100%; }
+}
+
+/* ─── Crisis Pulse + Ring ─── */
+@keyframes crisis-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+
+@keyframes crisis-ring {
+  0% { transform: scale(1); opacity: 0.4; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ─── Map marker pulse for active alerts ─── */
+@keyframes marker-alert-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 12px var(--alert-color); }
+  50% { transform: scale(1.15); box-shadow: 0 0 24px var(--alert-color), 0 0 40px var(--alert-color); }
+}
+
+.marker-alert {
+  animation: marker-alert-pulse 1s ease-in-out infinite !important;
+}
+
+/* ─── Enhanced Service Panel items ─── */
+.service-item {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.service-item:hover {
+  background: rgba(0, 242, 255, 0.06) !important;
+  border-color: rgba(0, 242, 255, 0.15) !important;
+  transform: translateX(-2px);
+}
+
+/* ─── Emergency Vignette (red pulsing edge glow) ─── */
+@keyframes emergency-vignette {
+  0%, 100% {
+    box-shadow: inset 0 0 100px rgba(239, 68, 68, 0.1),
+                inset 0 0 50px rgba(239, 68, 68, 0.05);
+  }
+  50% {
+    box-shadow: inset 0 0 150px rgba(239, 68, 68, 0.2),
+                inset 0 0 80px rgba(239, 68, 68, 0.12);
+  }
+}
+
+/* ─── Comms Terminal ─── */
+.comms-terminal {
+  background: rgba(0, 10, 12, 0.4);
+}
+
+.comms-terminal::-webkit-scrollbar {
+  width: 3px;
+}
+.comms-terminal::-webkit-scrollbar-track {
+  background: transparent;
+}
+.comms-terminal::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.15);
+  border-radius: 2px;
+}
+
+/* ─── Animated Route Lines ─── */
+.route-line-animated {
+  animation: flow-route 1s linear infinite;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+@keyframes flow-route {
+  from { stroke-dashoffset: 40; }
+  to { stroke-dashoffset: 0; }
+}
