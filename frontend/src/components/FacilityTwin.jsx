@@ -11,7 +11,7 @@ const ZONES = [
   { id: 'basement', label: 'Basement B2 (Utility)', path: 'M250 300 h 450 v 100 h -450 Z', textPos: { x: 475, y: 350 } },
 ];
 
-export default function FacilityTwin({ crisisInfo }) {
+export default function FacilityTwin({ crisisInfo, evacuationZone, alertMessage }) {
   // Infer active zone based on crisis type or string matching of location
   let activeZoneId = null;
   if (crisisInfo?.active && crisisInfo?.sensorData?.location) {
@@ -21,6 +21,17 @@ export default function FacilityTwin({ crisisInfo }) {
     else if (loc.includes('east gate') || loc.includes('eastgate')) activeZoneId = 'eastgate';
     else if (loc.includes('sector c')) activeZoneId = 'sectorc';
     else if (loc.includes('basement')) activeZoneId = 'basement';
+  }
+
+  // Infer evacuation zone
+  let evacZoneId = null;
+  if (evacuationZone) {
+    const loc = evacuationZone.toLowerCase();
+    if (loc.includes('kitchen')) evacZoneId = 'kitchen';
+    else if (loc.includes('lobby')) evacZoneId = 'lobby';
+    else if (loc.includes('east gate') || loc.includes('eastgate')) evacZoneId = 'eastgate';
+    else if (loc.includes('sector c')) evacZoneId = 'sectorc';
+    else if (loc.includes('basement')) evacZoneId = 'basement';
   }
 
   // Determine critical color based on severity (fallback to red)
@@ -117,6 +128,27 @@ export default function FacilityTwin({ crisisInfo }) {
           {/* Connective / Core paths just for tech aesthetics */}
           <path d="M 250 50 L 250 400 M 550 50 L 550 300" stroke="rgba(0, 242, 255, 0.1)" strokeWidth="2" strokeDasharray="4 4" />
         </svg>
+
+        {/* Evacuation Overlays */}
+        {ZONES.map((zone) => {
+          if (evacZoneId !== zone.id) return null;
+          return (
+            <div
+              key={`evac-${zone.id}`}
+              className="absolute bg-red-600 animate-pulse text-white font-bold p-2 rounded text-center whitespace-nowrap"
+              style={{
+                left: `${(zone.textPos.x / 800) * 100}%`,
+                top: `${(zone.textPos.y / 450) * 100}%`,
+                transform: 'translate(-50%, -50%)',
+                zIndex: 20,
+                boxShadow: '0 0 15px rgba(239, 68, 68, 0.8)',
+                fontFamily: 'var(--font-mono)'
+              }}
+            >
+              🚨 EVACUATE IMMEDIATELY
+            </div>
+          );
+        })}
 
         {/* Active Zone Readout Overlay */}
         {crisisInfo?.active && (

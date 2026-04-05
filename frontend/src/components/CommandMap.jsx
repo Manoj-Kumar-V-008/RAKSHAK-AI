@@ -694,7 +694,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
 
               {/* Row 2: 2D Facility Twin */}
               <Panel defaultSize={45} minSize={15} style={{ position: 'relative', overflow: 'hidden', background: 'var(--deep-space)' }}>
-                <FacilityTwin crisisInfo={crisisInfo} />
+                <FacilityTwin crisisInfo={crisisInfo} evacuationZone={agentState.evacuationZone} alertMessage={agentState.alertMessage} />
               </Panel>
 
             </PanelGroup>

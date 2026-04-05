@@ -63,6 +63,14 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
   const [systemStatus, setSystemStatus] = useState(STATUS.NOMINAL);
   const [actionLog, setActionLog] = useState([]);
   const [commsLog, setCommsLog] = useState([]);
+  const [evacuationZone, setEvacuationZone] = useState(null);
+  const [alertMessage, setAlertMessage] = useState(null);
+
+  const triggerEvacuation = useCallback((action) => {
+    setEvacuationZone(action.zone);
+    setAlertMessage(action.message);
+  }, []);
+  
   const [threatLevel, setThreatLevel] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dispatchProgress, setDispatchProgress] = useState([]); // { name, type, progress, done }
@@ -223,6 +231,25 @@ Respond with JSON only.`;
         throw new Error(`Failed to parse Gemini JSON. Raw output: ${rawText.slice(0, 150)}... Fallback triggered.`);
       }
 
+    // ──── Action Generation Logic ────
+    const actions = [];
+    const eventData = sensorData;
+    if (eventData.type === "smoke" && eventData.value > 80) {
+      actions.push({
+        type: "alert_people",
+        zone: eventData.location,
+        message: "Fire detected. Evacuate immediately."
+      });
+    }
+
+    // ──── Action Execution Logic ────
+    actions.forEach(action => {
+      if (action.type === "alert_people") {
+        triggerEvacuation(action);
+        addEntry('DISPATCH', `[${formatTime(new Date())}] 🚨 Alerting occupants in ${action.zone}`);
+      }
+    });
+
       // ──── Stage 1 Display: Threat Assessment ────
       setSystemStatus(STATUS.CRISIS);
       setThreatLevel(Math.min(100, (analysis.severity || 8) * 10 + 5));
@@ -336,6 +363,8 @@ Respond with JSON only.`;
           setSystemStatus(STATUS.NOMINAL);
           setThreatLevel(0);
           setDispatchProgress([]);
+          setEvacuationZone(null);
+          setAlertMessage(null);
           onCrisisUpdate?.({ active: false, type: null });
           addEntry('SYSTEM', 'Situation stabilized. Returning to standard monitoring protocol.');
           addComms('CHANNELS CLOSED. RESUMING PASSIVE SCAN.');
@@ -377,6 +406,8 @@ Respond with JSON only.`;
       setTimeout(() => {
         setSystemStatus(STATUS.NOMINAL);
         setThreatLevel(0);
+        setEvacuationZone(null);
+        setAlertMessage(null);
         onCrisisUpdate?.({ active: false, types: [], alertedNodes: [] });
         processingRef.current = false;
         setIsProcessing(false);
@@ -392,6 +423,8 @@ Respond with JSON only.`;
     isProcessing,
     dispatchProgress,
     scanCount,
+    evacuationZone,
+    alertMessage,
     processCrisis,
     addEntry,
     addComms,
