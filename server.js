@@ -89,10 +89,12 @@ const model = genAI.getGenerativeModel({
 
 let isProcessing = false;
 let runCount = 0;
+let pauseUntil = 0;
 
 // The autonomous AI loop
 setInterval(async () => {
   if (isProcessing) return;
+  if (Date.now() < pauseUntil) return;
   isProcessing = true;
 
   try {
@@ -133,7 +135,12 @@ Based on this context, take ONE immediate action using the tools provided. DO NO
 
   } catch (error) {
     console.error("Backend AI Error:", error);
-    addLog('SYSTEM', `⚠️ Backend Agent Error: ${error.message}`);
+    if (error.status === 429) {
+      addLog('SYSTEM', `⚠️ Rate Limit Hit (429). Pausing AI requests for 60 seconds...`);
+      pauseUntil = Date.now() + 60000;
+    } else {
+      addLog('SYSTEM', `⚠️ Backend Agent Error: ${error.message}`);
+    }
   } finally {
     isProcessing = false;
   }
