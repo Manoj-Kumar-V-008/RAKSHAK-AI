@@ -139,11 +139,11 @@ export default function LoginStep({ onLogin }) {
             <h1 className="text-[22px] md:text-3xl lg:text-4xl font-medium tracking-[0.2em] text-[#e2e8f0] mb-2 md:mb-4">RAKSHAK AI</h1>
             <p className="text-[10px] md:text-xs lg:text-sm tracking-[0.25em] font-mono text-cyan-500/80 mb-10 md:mb-14 text-center uppercase">Crisis Command Authentication</p>
 
-            <form onSubmit={handleSubmit} className="w-full space-y-6 md:space-y-8">
+            <form onSubmit={handleSubmit} className="w-full space-y-8 md:space-y-10 lg:space-y-12">
               
               {/* Input Group 1 */}
               <div>
-                <label className="flex items-center gap-2 text-[10px] md:text-xs lg:text-sm font-mono text-cyan-500/70 mb-2 md:mb-3 uppercase tracking-[0.15em] pl-1">
+                <label className="flex items-center gap-2 text-[10px] md:text-xs lg:text-sm font-mono text-cyan-500/70 mb-3 md:mb-4 uppercase tracking-[0.15em] pl-1">
                   <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-cyan-500/50" />
                   Operator Email
                 </label>
@@ -158,15 +158,15 @@ export default function LoginStep({ onLogin }) {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="auth-input w-full bg-[#050911]/90 border border-[#1b2a3a] rounded-xl py-4 md:py-5 pl-14 md:pl-16 pr-4 text-sm md:text-base lg:text-lg font-sans tracking-wide text-gray-200 outline-none focus:border-[#00f2ff]/50 transition-colors shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)]"
+                    className="auth-input w-full bg-[#050911]/90 border border-[#1b2a3a] rounded-xl py-5 md:py-6 lg:py-7 pl-14 md:pl-16 pr-4 text-sm md:text-base lg:text-lg font-sans tracking-wide text-gray-200 outline-none focus:border-[#00f2ff]/50 transition-colors shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)]"
                     placeholder="operator@rakshak.ai"
                   />
                 </div>
               </div>
 
               {/* Input Group 2 */}
-              <div className="pt-1 md:pt-2">
-                <label className="flex items-center gap-2 text-[10px] md:text-xs lg:text-sm font-mono text-cyan-500/70 mb-2 md:mb-3 uppercase tracking-[0.15em] pl-1">
+              <div className="pt-2 md:pt-4 lg:pt-6">
+                <label className="flex items-center gap-2 text-[10px] md:text-xs lg:text-sm font-mono text-cyan-500/70 mb-3 md:mb-4 uppercase tracking-[0.15em] pl-1">
                   <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-cyan-500/50" />
                   Security Key
                 </label>
@@ -181,38 +181,38 @@ export default function LoginStep({ onLogin }) {
                     type="password"
                     value={securityKey}
                     onChange={(e) => setSecurityKey(e.target.value)}
-                    className="auth-input w-full bg-[#050911]/90 border border-[#1b2a3a] rounded-xl py-4 md:py-5 pl-14 md:pl-16 pr-4 text-sm md:text-base lg:text-lg tracking-[0.4em] text-gray-200 outline-none focus:border-[#00f2ff]/50 transition-colors shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)]"
+                    className="auth-input w-full bg-[#050911]/90 border border-[#1b2a3a] rounded-xl py-5 md:py-6 lg:py-7 pl-14 md:pl-16 pr-4 text-sm md:text-base lg:text-lg tracking-[0.4em] text-gray-200 outline-none focus:border-[#00f2ff]/50 transition-colors shadow-[inset_0_4px_16px_rgba(0,0,0,0.8)]"
                     placeholder="••••••••••"
                   />
                 </div>
-                <div className="flex justify-end mt-3 md:mt-4">
+                <div className="flex justify-end mt-4">
                   <a href="#" className="text-[10px] md:text-xs lg:text-sm font-sans text-cyan-500/60 hover:text-cyan-400 transition-colors tracking-wide">Forgot Security Key?</a>
                 </div>
               </div>
               
               {error && (
-                <div className="text-[11px] md:text-sm font-mono text-red-500 text-center bg-red-500/10 border border-red-500/20 py-3 rounded-xl font-medium tracking-wide">
+                <div className="text-[11px] md:text-sm font-mono text-red-500 text-center bg-red-500/10 border border-red-500/20 py-4 rounded-xl font-medium tracking-wide">
                   {error}
                 </div>
               )}
 
               {/* Submit Button */}
-              <div className="pt-4 md:pt-6">
+              <div className="pt-6 md:pt-10">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="auth-submit-btn w-full relative group overflow-hidden rounded-xl py-4 md:py-5 lg:py-6 transition-all duration-200 active:scale-[0.98] border border-[#00f2ff]/20"
+                  className="auth-submit-btn w-full relative group overflow-hidden rounded-xl py-6 md:py-8 lg:py-10 transition-all duration-200 active:scale-[0.98] border border-[#00b4d8]/10"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#1a5f97] via-[#0d4677] to-[#062444]" />
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#00f2ff] shadow-[0_0_15px_#00f2ff]" />
-                  <div className="absolute top-0 left-[10%] right-[10%] h-[1px] bg-white/20" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#112338] via-[#091524] to-[#040a12]" />
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#00b4d8] shadow-[0_0_15px_#00b4d8]" />
+                  <div className="absolute top-0 left-[10%] right-[10%] h-[1px] bg-white/10" />
                   
                   <div className="relative flex items-center justify-center gap-3">
-                    <span className="text-[13px] md:text-sm lg:text-base font-bold tracking-[0.2em] text-white mt-px font-sans">
+                    <span className="text-[14px] md:text-base lg:text-lg font-medium tracking-[0.2em] text-gray-200 mt-px font-sans">
                       {isSubmitting ? 'AUTHENTICATING...' : 'READY TO ENGAGE'}
                     </span>
                     {!isSubmitting && (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white ml-2 opacity-90 group-hover:translate-x-1 transition-transform md:w-5 md:h-5">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-300 ml-2 opacity-80 group-hover:translate-x-1 transition-transform md:w-5 md:h-5">
                         <path d="M5 12h14M12 5l7 7-7 7" />
                       </svg>
                     )}
