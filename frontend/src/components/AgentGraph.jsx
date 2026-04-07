@@ -55,8 +55,83 @@ function resolveStation(type, crisisServices, crisisReasons) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Inner canvas — lives inside ReactFlowProvider
 // ─────────────────────────────────────────────────────────────────────────────
+// LangGraph node definitions — maps node key to display info
+const LANGGRAPH_NODES = [
+  { id: 'lg-detect',   key: 'detect_crisis',  label: 'DETECT', desc: 'Crisis Classification',     color: '#F59E0B', x: 80,  y: 10  },
+  { id: 'lg-gather',   key: 'gather_intel',   label: 'GATHER', desc: 'Overpass + TomTom Intel',   color: '#3B82F6', x: 80,  y: 85  },
+  { id: 'lg-score',    key: 'score_services', label: 'SCORE',  desc: 'Points-Based Ranking',       color: '#A855F7', x: 80,  y: 160 },
+  { id: 'lg-decide',   key: 'decide_dispatch',label: 'DECIDE', desc: 'Gemini Dispatch Decision',  color: '#EF4444', x: 80,  y: 235 },
+  { id: 'lg-alert',    key: 'alert_venue',    label: 'ALERT',  desc: 'Evacuation & Zone Alert',   color: '#22C55E', x: 80,  y: 310 },
+];
+
+function LangGraphPipeline({ activeNode, threatTier, threatLevel, cascadeRisk, serviceScores }) {
+  const TIER_COLORS = { GREEN: '#22C55E', YELLOW: '#EAB308', ORANGE: '#F97316', RED: '#EF4444', CRITICAL: '#DC2626' };
+  const tierColor = TIER_COLORS[threatTier] || '#22C55E';
+
+  return (
+    <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 20, width: 220, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {/* Threat badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, padding: '4px 8px', borderRadius: 6, background: `${tierColor}15`, border: `1px solid ${tierColor}40` }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: tierColor, boxShadow: `0 0 6px ${tierColor}` }} />
+        <span style={{ fontFamily: 'monospace', fontSize: 9, fontWeight: 700, color: tierColor, letterSpacing: 1.2 }}>
+          THREAT {threatTier} — {threatLevel?.toFixed(0) ?? 0}/100
+        </span>
+        {cascadeRisk > 0.1 && (
+          <span style={{ fontFamily: 'monospace', fontSize: 8, color: '#F97316', marginLeft: 'auto' }}>
+            CASCADE {(cascadeRisk * 100).toFixed(0)}%
+          </span>
+        )}
+      </div>
+
+      {/* Pipeline nodes */}
+      {LANGGRAPH_NODES.map((n, i) => {
+        const isActive  = activeNode === n.key;
+        const isDone    = LANGGRAPH_NODES.slice(0, i).some(p => p.key === activeNode) || (activeNode === null && threatLevel > 0);
+        return (
+          <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Connector line */}
+            {i > 0 && <div style={{ position: 'absolute', left: 18, top: 60 + i * 75 - 12, width: 2, height: 12, background: 'rgba(255,255,255,0.08)' }} />}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 8, width: '100%',
+              background:   isActive ? `${n.color}20` : isDone ? `rgba(255,255,255,0.03)` : 'transparent',
+              border:       `1px solid ${isActive ? n.color : isDone ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)'}`,
+              transition:   'all 0.3s ease',
+              boxShadow:    isActive ? `0 0 10px ${n.color}30` : 'none',
+            }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                background: isActive ? n.color : isDone ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                boxShadow: isActive ? `0 0 8px ${n.color}` : 'none',
+                animation: isActive ? 'pulse 1s infinite' : 'none',
+              }} />
+              <div>
+                <p style={{ fontFamily: 'monospace', fontSize: 8, fontWeight: 700, color: isActive ? n.color : 'rgba(255,255,255,0.5)', letterSpacing: 1 }}>{n.label}</p>
+                <p style={{ fontFamily: 'monospace', fontSize: 7, color: 'rgba(255,255,255,0.25)', letterSpacing: 0.5 }}>{n.desc}</p>
+              </div>
+              {isActive && <div style={{ marginLeft: 'auto', fontFamily: 'monospace', fontSize: 7, color: n.color }}>●</div>}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Top-3 scored services */}
+      {serviceScores?.length > 0 && (
+        <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 8, background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)' }}>
+          <p style={{ fontFamily: 'monospace', fontSize: 8, color: '#A855F7', fontWeight: 700, marginBottom: 4, letterSpacing: 1 }}>SCORED SERVICES</p>
+          {serviceScores.slice(0, 3).map((s, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+              <span style={{ fontFamily: 'monospace', fontSize: 7, color: i === 0 ? '#22C55E' : 'rgba(255,255,255,0.3)', width: 12 }}>#{i+1}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 7, color: 'rgba(255,255,255,0.5)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 7, color: '#A855F7', fontWeight: 700 }}>{s.total}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AgentGraphInner({ agentState, crisisInfo }) {
-  const { systemStatus, actionLog, isProcessing } = agentState;
+  const { systemStatus, actionLog, isProcessing, activeNode, serviceScores, threatTier, threatLevel, cascadeRisk } = agentState;
 
   // Service dispatch lifecycle (Alerting → Responded → Dispatched)
   const [serviceStatus, setServiceStatus] = useState({});
@@ -357,12 +432,20 @@ function AgentGraphInner({ agentState, crisisInfo }) {
           </span>
         </div>
         <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#6B7280', letterSpacing: 1.2 }}>
-          {statusLabel}
+          LangGraph v2.0 · {statusLabel}
         </span>
       </div>
 
       {/* React Flow canvas — fills all remaining height */}
       <div ref={canvasRef} style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        {/* LangGraph pipeline overlay */}
+        <LangGraphPipeline
+          activeNode={activeNode}
+          threatTier={threatTier}
+          threatLevel={threatLevel}
+          cascadeRisk={cascadeRisk}
+          serviceScores={serviceScores}
+        />
         <ReactFlow
           nodes={nodes}
           edges={edges}

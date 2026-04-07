@@ -1,9 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
-// ──────────────────────────────────────────────────────
-//  STATUS + CATEGORY ENUMS
-// ──────────────────────────────────────────────────────
+// ─── Status & Category enums (unchanged) ────────────────────────────────────
 export const STATUS = {
   NOMINAL:     { label: 'NOMINAL',          color: '#22C55E', glow: '0 0 12px rgba(34,197,94,0.4)' },
   MONITORING:  { label: 'MONITORING',       color: '#3B82F6', glow: '0 0 12px rgba(59,130,246,0.4)' },
@@ -11,6 +9,15 @@ export const STATUS = {
   CRISIS:      { label: 'CRISIS DETECTED',  color: '#EF4444', glow: '0 0 16px rgba(239,68,68,0.6)' },
   DISPATCHING: { label: 'DISPATCHING',      color: '#A855F7', glow: '0 0 14px rgba(168,85,247,0.5)' },
   RESOLVED:    { label: 'RESOLVED',         color: '#22C55E', glow: '0 0 12px rgba(34,197,94,0.4)' },
+};
+
+// 5-tier threat system matching the Python math engine
+export const THREAT_LEVELS = {
+  GREEN:    { label: 'GREEN',    color: '#22C55E', bg: 'rgba(34,197,94,0.12)',   score_range: '0–30'   },
+  YELLOW:   { label: 'YELLOW',   color: '#EAB308', bg: 'rgba(234,179,8,0.12)',   score_range: '31–55'  },
+  ORANGE:   { label: 'ORANGE',   color: '#F97316', bg: 'rgba(249,115,22,0.12)',  score_range: '56–75'  },
+  RED:      { label: 'RED',      color: '#EF4444', bg: 'rgba(239,68,68,0.12)',   score_range: '76–90'  },
+  CRITICAL: { label: 'CRITICAL', color: '#DC2626', bg: 'rgba(220,38,38,0.16)',   score_range: '91–100' },
 };
 
 export const CATEGORIES = {
@@ -24,182 +31,262 @@ export const CATEGORIES = {
   COMMS:     { label: 'COMMS',     color: '#06B6D4', bg: 'rgba(6,182,212,0.06)',  border: 'rgba(6,182,212,0.15)' },
 };
 
-export default function useAutonomousAgent({ hospitalityType, services, mapCenter, onCrisisUpdate }) {
-  const [systemStatus, setSystemStatus] = useState(STATUS.NOMINAL);
-  const [actionLog, setActionLog] = useState([]);
-  const [commsLog, setCommsLog] = useState([]);
-  const [evacuationZone, setEvacuationZone] = useState(null);
-  const [alertMessage, setAlertMessage] = useState(null);
+const PYTHON_WS_URL = import.meta.env.VITE_PYTHON_AGENT_WS_URL || 'ws://localhost:8000';
+const NODE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://rakshak-backend-wbuz.onrender.com';
 
-  const [threatLevel, setThreatLevel] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [dispatchProgress, setDispatchProgress] = useState([]); 
-  const [scanCount, setScanCount] = useState(0);
+export default function useAutonomousAgent({ hospitalityType, services, mapCenter, onCrisisUpdate }) {
+  const [systemStatus, setSystemStatus]     = useState(STATUS.NOMINAL);
+  const [actionLog, setActionLog]           = useState([]);
+  const [commsLog, setCommsLog]             = useState([]);
+  const [evacuationZone, setEvacuationZone] = useState(null);
+  const [alertMessage, setAlertMessage]     = useState(null);
+  const [threatLevel, setThreatLevel]       = useState(0);         // numeric 0-100
+  const [threatTier, setThreatTier]         = useState('GREEN');   // GREEN/YELLOW/ORANGE/RED/CRITICAL
+  const [isProcessing, setIsProcessing]     = useState(false);
+  const [dispatchProgress, setDispatchProgress] = useState([]);
+  const [scanCount, setScanCount]           = useState(0);
+  const [activeNode, setActiveNode]         = useState(null);      // which LangGraph node is running
+  const [serviceScores, setServiceScores]   = useState([]);        // scored services from Python
+  const [cascadeRisk, setCascadeRisk]       = useState(0);         // cascade probability
+
+  const pythonWsRef = useRef(null);
+  const sessionIdRef = useRef(null);
 
   const formatTime = (d) =>
     d.toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-  // ─── ADD LOG ENTRY ───
   const addEntry = useCallback((category, message, meta = null) => {
     setActionLog((prev) => {
-      const entry = {
-        id: Date.now() + Math.random(),
-        timestamp: new Date(),
-        category,
-        message,
-        meta,
-      };
+      const entry = { id: Date.now() + Math.random(), timestamp: new Date(), category, message, meta };
       return [...prev, entry].slice(-60);
     });
   }, []);
 
-  // ─── ADD COMMS LINE ───
   const addComms = useCallback((line) => {
-    setCommsLog((prev) => [...prev, {
-      id: Date.now() + Math.random(),
-      timestamp: new Date(),
-      text: line,
-    }].slice(-30));
+    setCommsLog((prev) => [...prev, { id: Date.now() + Math.random(), timestamp: new Date(), text: line }].slice(-30));
   }, []);
 
-  const incrementScan = useCallback(() => {
-    setScanCount((prev) => prev + 1);
-  }, []);
+  const incrementScan = useCallback(() => setScanCount((p) => p + 1), []);
 
   const triggerEvacuation = useCallback((zone, message) => {
     setEvacuationZone(zone);
     setAlertMessage(message);
-    addEntry('DISPATCH', `[${formatTime(new Date())}] 🚨 Alerting occupants in ${zone}`);
+    addEntry('DISPATCH', `🚨 Alerting occupants in ${zone}`);
   }, [addEntry]);
 
-  // Connect to the Backend Socket.io Server for Real-Time Brain Sync
-  useEffect(() => {
-    const socket = io('http://localhost:3000');
+  // ── Python LangGraph WebSocket ───────────────────────────────────────────
+  function handlePythonMessage(msg) {
+    switch (msg.type) {
+      case 'connected':
+        addComms('✅ PYTHON LANGGRAPH AGENT NEURAL LINK ESTABLISHED.');
+        break;
 
-    socket.on('connect', () => {
-      addComms('ESTABLISHED SECURE WEBSOCKET UPLINK TO AGENT CORE.');
-    });
+      case 'agent_start':
+        setIsProcessing(true);
+        setSystemStatus(STATUS.ANALYZING);
+        setActiveNode('detect_crisis');
+        addComms('🧠 LANGGRAPH AGENT ACTIVATED — RUNNING 5-NODE CRISIS PIPELINE...');
+        break;
 
-    socket.on('sync_state', (data) => {
-      // Intentionally left simple, can load past logs here
-    });
+      case 'node_start':
+        setActiveNode(msg.node);
+        addComms(`▶ NODE [${msg.node.toUpperCase().replace('_', ' ')}] EXECUTING...`);
+        break;
 
-    socket.on('audit_log', (entry) => {
-      // The backend has a new log entry
-      setActionLog((prev) => [...prev, entry].slice(-60));
-      
-      // If it's a serious detection, upgrade threat
-      if (entry.category === 'DETECTION') {
-        setSystemStatus(STATUS.CRISIS);
-        setThreatLevel(85);
-        addComms('THREAT DETECTED. INITIATING REVERT CONTROL TO AGENT.');
+      case 'threat_assessment':
+        setThreatLevel(msg.threat_score ?? 0);
+        setThreatTier(msg.threat_level ?? 'GREEN');
+        setCascadeRisk(msg.cascade_risk ?? 0);
+        addEntry('ANALYSIS', `🎯 ThreatScore: ${msg.threat_score}/100 (${msg.threat_level}) | Cascade Risk: ${(msg.cascade_risk * 100).toFixed(1)}% | Severity: ${msg.severity}/10`);
+        if ((msg.threat_score ?? 0) > 55) {
+          setSystemStatus(STATUS.CRISIS);
+        }
+        break;
+
+      case 'intel':
+        addEntry('INTEL', `📡 Overpass API: Found ${msg.data?.services_found ?? 0} real emergency services nearby. Traffic checked for ${msg.data?.traffic_checked ?? 0}.`);
+        break;
+
+      case 'scores': {
+        const scores = msg.data ?? [];
+        setServiceScores(scores);
+        addEntry('ANALYSIS', `📊 Service Scoring Complete. Best: ${scores[0]?.name ?? 'N/A'} (${scores[0]?.total ?? 0} pts). Refined ThreatScore: ${msg.refined_threat_score}`);
+        break;
       }
-      if (entry.category === 'RESOLVED') {
-        setSystemStatus(STATUS.MONITORING);
-        setThreatLevel(20);
+
+      case 'decision': {
+        const dispatched = msg.dispatched_services || [msg.best_service || {}];
+        setSystemStatus(STATUS.DISPATCHING);
+        
+        const progress = dispatched.map(svc => ({
+          name:     svc.name ?? 'Unit',
+          type:     svc.service_type ?? svc.type ?? 'responder',
+          progress: 100,
+          done:     true,
+          reason:   msg.reasoning ?? 'Agent dispatched based on score analysis.',
+          score:    svc.scores?.total,
+          distance: svc.distance_km,
+        }));
+        setDispatchProgress(progress);
+        
+        const names = dispatched.map(s => s.name).join(', ');
+        addEntry('DISPATCH', `✅ DISPATCH CONFIRMED: ${names} — ${msg.reasoning ?? ''}`);
+
+        // Update map
+        const types = [...new Set(dispatched.map(s => s.service_type ?? s.type))].filter(Boolean);
+        const primaryService = dispatched[0] || {};
+        onCrisisUpdate?.({
+          active:          true,
+          types:           types.length > 0 ? types : ['hospital'],
+          alertedNodes:    dispatched.map(s => s.id),
+          sensorData:      null,
+          services:        dispatched,
+          respondersActive: true,
+          bestService:     primaryService,
+        });
+        break;
+      }
+
+      case 'evacuation':
+        if (msg.zones?.length > 0) {
+          triggerEvacuation(msg.zones[0], msg.message);
+          addEntry('DISPATCH', `🚨 Evacuation triggered: ${msg.zones.join(', ')}`);
+        }
+        break;
+
+      case 'node_result':
+        addEntry('ANALYSIS', `✔ [${(msg.node ?? '').toUpperCase().replace(/_/g, ' ')}] ${msg.summary ?? ''}`);
+        break;
+
+      case 'resolved':
+        setSystemStatus(STATUS.RESOLVED);
+        setThreatLevel(15);
+        setIsProcessing(false);
+        setActiveNode(null);
+        addEntry('RESOLVED', `✅ ${msg.summary ?? 'Crisis fully handled by LangGraph agent.'}`);
+        addComms('ALL UNITS NOTIFIED. LANGGRAPH AGENT RETURNING TO MONITOR STATE.');
         setTimeout(() => {
           setSystemStatus(STATUS.NOMINAL);
           setThreatLevel(0);
+          setThreatTier('GREEN');
           setDispatchProgress([]);
           setEvacuationZone(null);
           setAlertMessage(null);
+          setServiceScores([]);
+          setCascadeRisk(0);
           onCrisisUpdate?.({ active: false, type: null });
-        }, 8000);
-      }
-    });
+        }, 10000);
+        break;
 
-    socket.on('agent_status', (data) => {
-      setIsProcessing(data.isProcessing);
-      if (data.status === 'ANALYZING') {
-        setSystemStatus(STATUS.ANALYZING);
-      } else if (data.status === 'NOMINAL') {
-        // let the resolved hook clear it slowly
-      }
-    });
-
-    socket.on('agent_thought', (thought) => {
-      addComms(`AGENT OPINION: ${thought}`);
-    });
-
-    socket.on('agent_action', ({ name, args }) => {
-      addComms(`AGENT EXECUTING OVERRIDE: ${name.toUpperCase()}`);
-      
-      // Hook specific tools to UI behaviors
-      if (name === 'send_alert' || (name === 'dispatch_responder' && args.location)) {
-         // Auto-trigger evacuation logic physically
-         if (args.zones && args.zones.length > 0) {
-            triggerEvacuation(args.zones[0], args.message);
-         } else if (args.location) {
-             // For dispatch responder trying to warn that location
-             if (args.reason && args.reason.toLowerCase().includes('fire')) {
-                triggerEvacuation(args.location, "Evacuate Zone Immediately.");
-             }
-         }
-      }
-    });
-
-    socket.on('crisis_update', (payload) => {
-       // payload.types -> ['hospital', 'fire_station']
-       const mappedServices = (payload.types || []).map(t => services?.find(s => s.type === t)).filter(Boolean);
-       const mappedNodes = mappedServices.map(s => s.id);
-       
-       setSystemStatus(STATUS.DISPATCHING);
-       
-       // Build progress bars
-       const progress = mappedServices.map(s => ({
-          name: s.name,
-          type: s.type,
-          progress: 100,
-          done: true,
-          reason: payload.details?.reason || 'Agent ordered dispatch after analysis.',
-       }));
-       setDispatchProgress(progress);
-
-       onCrisisUpdate?.({
-           active: payload.active,
-           types: payload.types,
-           alertedNodes: mappedNodes,
-           sensorData: payload.sensorData,
-           services: mappedServices,
-           respondersActive: true 
-       });
-    });
-
-    return () => socket.disconnect();
-  }, [addComms, onCrisisUpdate, services, triggerEvacuation]);
-
-
-  // ──────────────────────────────────────────────────────
-  //  PROCESS CRISIS — Route to backend agent via webhook
-  // ──────────────────────────────────────────────────────
-  const processCrisis = useCallback(async (sensorData) => {
-    // Stage 0: Sensor Detection
-    setSystemStatus(STATUS.ANALYZING);
-    setThreatLevel(50);
-    onCrisisUpdate?.({ active: true, type: null, analyzing: true, sensorData });
-    addComms('FORWARDING SENSOR TELEMETRY TO BACKEND NEURAL ENGINE...');
-
-    try {
-        await fetch('http://localhost:3000/api/events', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(sensorData)
-        });
-    } catch (e) {
-        addComms('ERROR: BACKEND UPLINK FAILURE ' + e.message);
+      case 'error':
+        addEntry('SYSTEM', `⚠️ Agent error: ${msg.message}`);
+        setIsProcessing(false);
+        setActiveNode(null);
+        break;
     }
-  }, [onCrisisUpdate, addComms]);
+  }
+
+  // ── Connect to Python WebSocket ───────────────────────────────────────────
+  useEffect(() => {
+    const sid = `ui-${Date.now()}`;
+    sessionIdRef.current = sid;
+
+    let ws;
+    let reconnectTimer;
+
+    function connect() {
+      try {
+        ws = new WebSocket(`${PYTHON_WS_URL}/ws/${sid}`);
+        pythonWsRef.current = ws;
+
+        ws.onopen  = () => addComms('🔗 Python LangGraph agent WebSocket connected.');
+        ws.onmessage = (ev) => {
+          try { handlePythonMessage(JSON.parse(ev.data)); } catch (_) {}
+        };
+        ws.onclose = () => {
+          addComms('⚡ Python agent WS disconnected — will retry...');
+          reconnectTimer = setTimeout(connect, 4000);
+        };
+        ws.onerror = () => {};   // handled by onclose
+      } catch (_) {}
+    }
+
+    connect();
+
+    // ── Socket.IO → Node.js (kept for audit log compatibility) ──────────────
+    const socket = io(NODE_BACKEND_URL, { transports: ['websocket', 'polling'] });
+    socket.on('connect',    () => addComms('📡 Node.js relay Socket.IO uplink active.'));
+    socket.on('audit_log',  (entry) => setActionLog((p) => [...p, entry].slice(-60)));
+    socket.on('disconnect', () => {});
+
+    return () => {
+      clearTimeout(reconnectTimer);
+      ws?.close();
+      socket.disconnect();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── processCrisis — send event to Python agent via WS ────────────────────
+  const processCrisis = useCallback(async (sensorData) => {
+    setSystemStatus(STATUS.ANALYZING);
+    setThreatLevel(40);
+    setIsProcessing(true);
+    onCrisisUpdate?.({ active: true, type: sensorData?.type ?? null, analyzing: true, sensorData });
+    addComms('📤 FORWARDING SENSOR PAYLOAD TO LANGGRAPH AGENT...');
+    addEntry('DETECTION', `Anomaly: ${(sensorData?.type ?? 'UNKNOWN').toUpperCase()} @ ${sensorData?.location ?? '?'} | Sensor: ${sensorData?.sensor_id ?? 'N/A'}`);
+
+    const lat = mapCenter?.lat ?? 12.9716;
+    const lng = mapCenter?.lng ?? mapCenter?.lon ?? 77.5946;
+
+    const ws = pythonWsRef.current;
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      // ── PRIMARY: send to Python LangGraph agent ───────────────────────────
+      ws.send(JSON.stringify({ type: 'crisis_event', data: sensorData, venue_lat: lat, venue_lon: lng }));
+      addComms('✅ CRISIS EVENT SENT TO LANGGRAPH NEURAL ENGINE.');
+
+    } else {
+      // ── FALLBACK: local simulation when Python agent is offline ───────────
+      addComms('⚠️ PYTHON AGENT OFFLINE — ACTIVATING LOCAL SIMULATION FALLBACK.');
+      _runLocalFallback(sensorData, lat, lng);
+    }
+  }, [mapCenter, onCrisisUpdate, addComms, addEntry]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function _runLocalFallback(sensorData, _lat, _lng) {
+    const crisisType = sensorData?.type ?? 'smoke';
+    const typeMap    = { smoke: 'fire_station', fire: 'fire_station', health: 'hospital', cardiac: 'hospital', security: 'police', breach: 'police', power: 'fire_station', water: 'fire_station' };
+    const targetType = typeMap[crisisType] ?? 'police';
+
+    setTimeout(() => { addEntry('ANALYSIS', `Gemini fallback: ${crisisType} at ${sensorData?.location}. Threat assessment...`); setThreatLevel(70); }, 1500);
+    setTimeout(() => { setSystemStatus(STATUS.CRISIS); setThreatLevel(88); addEntry('DECISION', `Dispatching ${targetType.replace('_', ' ')} units.`); }, 3500);
+    setTimeout(() => {
+      setSystemStatus(STATUS.DISPATCHING);
+      const matched = services?.filter(s => s.type === targetType).slice(0, 2) ?? [];
+      setDispatchProgress(matched.map(s => ({ name: s.name, type: s.type, progress: 100, done: true, reason: `Closest unit — ${s.distance?.toFixed(1)}km`, score: null })));
+      if (sensorData?.location) triggerEvacuation('main-area', `Emergency: ${crisisType} at ${sensorData.location}`);
+      onCrisisUpdate?.({ active: true, type: targetType, alertedNodes: matched.map(s => s.id), sensorData, services: matched, respondersActive: true });
+    }, 5500);
+    setTimeout(() => {
+      setSystemStatus(STATUS.RESOLVED); setThreatLevel(10); setIsProcessing(false);
+      addEntry('RESOLVED', 'Local fallback response complete.');
+      setTimeout(() => { setSystemStatus(STATUS.NOMINAL); setThreatLevel(0); setDispatchProgress([]); setEvacuationZone(null); setAlertMessage(null); onCrisisUpdate?.({ active: false, type: null }); }, 8000);
+    }, 12000);
+  }
 
   return {
     systemStatus,
     actionLog,
     commsLog,
     threatLevel,
+    threatTier,
+    cascadeRisk,
     isProcessing,
     dispatchProgress,
     scanCount,
     evacuationZone,
     alertMessage,
+    activeNode,
+    serviceScores,
     processCrisis,
     addEntry,
     addComms,

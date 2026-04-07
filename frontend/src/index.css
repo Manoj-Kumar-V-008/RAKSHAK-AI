@@ -446,3 +446,239 @@ body {
   from { stroke-dashoffset: 40; }
   to { stroke-dashoffset: 0; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   COMMAND CENTER GRID LAYOUT
+   ═══════════════════════════════════════════════════════════ */
+.cmd-grid {
+  display: grid;
+  grid-template-rows: 48px 1fr 34px;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "topbar topbar"
+    "sidebar map"
+    "bottombar bottombar";
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ─── Top Bar ─── */
+.cmd-topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: rgba(8, 10, 16, 0.98);
+  border-bottom: 1px solid rgba(0, 242, 255, 0.06);
+  backdrop-filter: blur(20px);
+  z-index: 50;
+}
+
+/* ─── Left Sidebar ─── */
+.cmd-sidebar {
+  grid-area: sidebar;
+  width: 320px;
+  background: rgba(8, 10, 16, 0.99);
+  border-right: 1px solid rgba(0, 242, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 40;
+}
+
+.cmd-sidebar.collapsed {
+  width: 56px;
+}
+
+.cmd-sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.cmd-sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.cmd-sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.cmd-sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(0,242,255,0.1); border-radius: 2px; }
+
+/* ─── Map Area ─── */
+.cmd-map-area {
+  grid-area: map;
+  position: relative;
+  overflow: hidden;
+  background: #050709;
+}
+
+/* ─── Bottom Bar ─── */
+.cmd-bottombar {
+  grid-area: bottombar;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background: rgba(8, 10, 16, 0.98);
+  border-top: 1px solid rgba(0, 242, 255, 0.06);
+  gap: 6px;
+  z-index: 50;
+}
+
+/* ─── Neural Engine Drawer ─── */
+.cmd-neural-drawer {
+  position: fixed;
+  top: 48px;
+  right: 0;
+  bottom: 34px;
+  width: 38vw;
+  max-width: 580px;
+  min-width: 360px;
+  z-index: 200;
+  background: rgba(3, 5, 8, 0.99);
+  border-left: 1px solid rgba(0, 242, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: -8px 0 40px rgba(0,0,0,0.5);
+}
+
+/* ─── Facility Twin Overlay ─── */
+.cmd-facility-overlay {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 380px;
+  height: 240px;
+  z-index: 30;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 242, 255, 0.08);
+  background: rgba(5, 7, 10, 0.85);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+/* ─── Metric Card ─── */
+.cmd-metric-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(15, 20, 30, 0.5);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.cmd-metric-card:hover {
+  border-color: rgba(0, 242, 255, 0.12);
+  background: rgba(15, 20, 30, 0.7);
+}
+
+/* ─── Services Table Row ─── */
+.cmd-svc-row {
+  display: grid;
+  grid-template-columns: 76px 1fr 48px 40px;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+
+.cmd-svc-row:hover {
+  background: rgba(0, 242, 255, 0.04);
+  border-color: rgba(0, 242, 255, 0.08);
+}
+
+/* ─── Alert Card ─── */
+.cmd-alert-card {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border-left: 3px solid;
+  background: rgba(15, 20, 30, 0.5);
+  margin-bottom: 6px;
+  transition: all 0.2s ease;
+}
+
+.cmd-alert-card:hover {
+  background: rgba(15, 20, 30, 0.8);
+}
+
+/* ─── Collapsed Sidebar Icon ─── */
+.cmd-collapsed-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  font-size: 16px;
+}
+
+.cmd-collapsed-icon:hover {
+  background: rgba(0, 242, 255, 0.06);
+  border-color: rgba(0, 242, 255, 0.12);
+}
+
+/* ─── Sidebar Divider ─── */
+.cmd-divider {
+  height: 1px;
+  background: rgba(0, 242, 255, 0.06);
+  margin: 4px 14px;
+}
+
+/* ─── Bottom Bar Button ─── */
+.cmd-bottom-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0,242,255,0.08);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.cmd-bottom-btn:hover {
+  border-color: rgba(0,242,255,0.2);
+  background: rgba(0,242,255,0.04);
+  color: var(--command-teal);
+}
+
+.cmd-bottom-btn.active {
+  border-color: rgba(239,68,68,0.3);
+  background: rgba(239,68,68,0.06);
+  color: #EF4444;
+}
+
+/* ─── Filter Tab ─── */
+.cmd-filter-tab {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.04);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.cmd-filter-tab:hover { border-color: rgba(0,242,255,0.15); }
+.cmd-filter-tab.active { border-color: var(--command-teal); color: var(--command-teal); background: rgba(0,242,255,0.06); }
