@@ -682,3 +682,95 @@ body {
 
 .cmd-filter-tab:hover { border-color: rgba(0,242,255,0.15); }
 .cmd-filter-tab.active { border-color: var(--command-teal); color: var(--command-teal); background: rgba(0,242,255,0.06); }
+
+/* ─── Threat Gauge Pulse ─── */
+@keyframes gauge-pulse {
+  0%, 100% { filter: drop-shadow(0 0 4px currentColor); }
+  50% { filter: drop-shadow(0 0 12px currentColor); }
+}
+
+/* ─── Typewriter Cursor Blink ─── */
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ─── Chain-of-Thought Step Entry ─── */
+@keyframes cot-enter {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ─── SMS Delivery Checkmark ─── */
+@keyframes sms-check {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* ─── Confirmation Countdown Ring ─── */
+@keyframes countdown-ring {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 283; }
+}
+
+/* ─── Enhanced Emergency Vignette (more dramatic) ─── */
+@keyframes emergency-vignette-v3 {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 80px rgba(239, 68, 68, 0.08),
+      inset 0 0 200px rgba(239, 68, 68, 0.04);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 120px rgba(239, 68, 68, 0.15),
+      inset 0 0 300px rgba(239, 68, 68, 0.08);
+  }
+}
+
+/* ─── Pulsing dot helper ─── */
+@keyframes dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.4); opacity: 1; }
+}
+
+/* ─── Timeline node hover ─── */
+.timeline-node:hover {
+  background: rgba(0, 242, 255, 0.04) !important;
+}
+
+/* ─── Map overlay panel ─── */
+.map-cot-panel {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,242,255,0.1) transparent;
+}
+
+.map-cot-panel::-webkit-scrollbar { width: 4px; }
+.map-cot-panel::-webkit-scrollbar-track { background: transparent; }
+.map-cot-panel::-webkit-scrollbar-thumb { background: rgba(0,242,255,0.1); border-radius: 2px; }
+
+/* ─── Contact input focus ─── */
+.contact-input:focus {
+  border-color: rgba(6, 182, 212, 0.3) !important;
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.1);
+}
+
+/* ─── Audio Badge ─── */
+.audio-badge {
+  transition: all 0.2s ease;
+}
+
+.audio-badge:hover {
+  background: rgba(0, 242, 255, 0.06) !important;
+}
+
+/* ─── Confirmation modal backdrop blur ─── */
+.confirm-backdrop {
+  animation: backdrop-fade-in 0.3s ease-out;
+}
+
+@keyframes backdrop-fade-in {
+  from { backdrop-filter: blur(0px); }
+  to { backdrop-filter: blur(8px); }
+}
+

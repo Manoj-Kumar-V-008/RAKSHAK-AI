@@ -1,40 +1,46 @@
-from typing import TypedDict, Optional
+from typing import TypedDict
 
 
-class CrisisState(TypedDict):
-    # ── Input ──────────────────────────────────────
-    session_id: str
+class CrisisState(TypedDict, total=False):
+    """Shared state for the LangGraph crisis-response pipeline."""
+
+    # ── Raw sensor input ──
     sensor_data: dict
     venue_lat: float
     venue_lon: float
+    session_id: str
 
-    # ── Detection ──────────────────────────────────
-    crisis_type: str
-    severity: int          # 1-10
-    location_name: str
+    # ── Detection ──
+    crisis_type: str          # e.g. "smoke", "health", "security"
+    severity: int             # 1-10
+    gemini_analysis: str      # raw Gemini response text
+    chain_of_thought: list    # NEW: step-by-step reasoning from each node
 
-    # ── Threat Math ────────────────────────────────
-    threat_score: float    # 0-100
-    threat_level: str      # GREEN / YELLOW / ORANGE / RED / CRITICAL
-    cascade_risk: float    # 0-1
+    # ── Threat math ──
+    threat_score: float       # 0-100
+    threat_level: str         # GREEN / YELLOW / ORANGE / RED / CRITICAL
+    cascade_risk: float       # 0.0 - 1.0
 
-    # ── Intel ──────────────────────────────────────
-    nearby_services: list
-    traffic_data: dict     # service_id -> {congestion_ratio, delay_minutes}
+    # ── Intel ──
+    nearby_services: list     # raw Overpass results
+    traffic_info: dict        # TomTom traffic summary
 
-    # ── Scoring ────────────────────────────────────
-    scored_services: list  # sorted by total score desc
+    # ── Scoring ──
+    scored_services: list     # services with points breakdown
+    refined_threat_score: float
 
-    # ── Decision ───────────────────────────────────
-    best_service: Optional[dict]
-    dispatched_services: list[dict]
-    dispatch_reasoning: str
-    dispatch_status: str   # pending / dispatched / failed
+    # ── Decision ──
+    dispatched_services: list # selected services to dispatch
+    dispatch_reasoning: str   # Gemini reasoning for dispatch decision
+    rejected_services: list   # NEW: services rejected + reasons
 
-    # ── Alert ──────────────────────────────────────
+    # ── Human-in-the-loop ──
+    confirmation_required: bool  # NEW: whether to pause for operator approval
+    confirmation_status: str     # NEW: "pending" | "approved" | "rejected"
+
+    # ── Alerting ──
     evacuation_zones: list
     alert_message: str
-
-    # ── Meta ───────────────────────────────────────
-    agent_log: list        # [{node, summary, data}]
-    is_resolved: bool
+    emergency_contacts: list  # NEW: [{name, phone}]
+    sms_results: list         # NEW: SMS delivery results
+    call_results: list        # NEW: voice call results

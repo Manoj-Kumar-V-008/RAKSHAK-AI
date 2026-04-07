@@ -1,40 +1,51 @@
-"""
-Node 2 — gather_intel
-Fetches real nearby services from Overpass API + traffic from TomTom.
-"""
-import asyncio
-
 from ..state import CrisisState
 from ..tools.overpass import fetch_nearby_services
 from ..tools.traffic import fetch_traffic
 
 
 async def gather_intel(state: CrisisState) -> dict:
-    lat         = state.get("venue_lat", 12.9716)
-    lon         = state.get("venue_lon", 77.5946)
-    crisis_type = state["crisis_type"]
+    """
+    Node 2 — GATHER: Fetches real nearby services from OpenStreetMap
+    and live traffic data from TomTom.
+    """
+    lat = state.get("venue_lat", 12.9716)
+    lon = state.get("venue_lon", 77.5946)
+    crisis_type = state.get("crisis_type", "smoke")
 
-    # 1. Fetch real services from OpenStreetMap
-    services = await fetch_nearby_services(lat, lon, crisis_type)
+    chain_of_thought = state.get("chain_of_thought", [])
 
-    # 2. Fetch traffic for top-10 services in parallel
-    top10       = services[:10]
-    traffic_data: dict[str, dict] = {}
+    # Add reasoning step
+    chain_of_thought.append({
+        "node": "gather_intel",
+        "text": f"Querying OpenStreetMap Overpass API for emergency services within 8km of ({lat:.4f}°N, {lon:.4f}°E). Crisis type: {crisis_type.upper()}.",
+        "factors": ["Real-world service discovery", "Overpass API query", f"Radius: 8km"],
+    })
 
-    async def _get_traffic(svc: dict) -> None:
-        info = await fetch_traffic(lat, lon, svc["lat"], svc["lon"])
-        traffic_data[svc["id"]] = info
+    # Fetch nearby services
+    nearby = await fetch_nearby_services(lat, lon, crisis_type)
 
-    await asyncio.gather(*[_get_traffic(s) for s in top10], return_exceptions=True)
+    chain_of_thought.append({
+        "node": "gather_intel",
+        "text": f"Found {len(nearby)} emergency services. Checking TomTom real-time traffic conditions for route analysis.",
+        "factors": [f"{len(nearby)} services found", "Traffic API integration", "Route optimization"],
+    })
 
-    log = {
-        "node":    "gather_intel",
-        "summary": f"Found {len(services)} nearby emergency services. Traffic checked for {len(traffic_data)}.",
-        "data":    {"services_found": len(services), "traffic_checked": len(traffic_data)},
-    }
+    # Fetch traffic for the closest 5 services
+    traffic_info = {}
+    for svc in nearby[:5]:
+        svc_lat = svc.get("lat", lat)
+        svc_lon = svc.get("lon", lon)
+        traf = await fetch_traffic(lat, lon, svc_lat, svc_lon)
+        traffic_info[svc.get("id", "")] = traf
+
+    chain_of_thought.append({
+        "node": "gather_intel",
+        "text": f"Intel gathering complete. {len(nearby)} services located, traffic analyzed for top {min(len(nearby), 5)} routes.",
+        "factors": [f"Services: {len(nearby)}", f"Traffic routes: {len(traffic_info)}", "Data ready for scoring"],
+    })
 
     return {
-        "nearby_services": services,
-        "traffic_data":    traffic_data,
-        "agent_log":       state.get("agent_log", []) + [log],
+        "nearby_services": nearby,
+        "traffic_info": traffic_info,
+        "chain_of_thought": chain_of_thought,
     }

@@ -1,86 +1,92 @@
-"""
-Node 1 — detect_crisis
-Classifies the raw sensor payload and computes initial threat score.
-"""
-import json
 import os
+import google.generativeai as genai
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage
+genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
+_model = genai.GenerativeModel("gemini-2.0-flash")
 
 from ..state import CrisisState
-from ..tools.scoring import compute_threat_score, compute_cascade_risk
-
-_llm: ChatGoogleGenerativeAI | None = None
 
 
-def _get_llm() -> ChatGoogleGenerativeAI:
-    global _llm
-    if _llm is None:
-        _llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=os.getenv("GEMINI_API_KEY", ""),
-            temperature=0.1,
-        )
-    return _llm
+def detect_crisis(state: CrisisState) -> dict:
+    """
+    Node 1 — DETECT: Classifies the sensor anomaly, assigns severity,
+    and builds a chain-of-thought reasoning trace.
+    """
+    sensor = state.get("sensor_data", {})
+    s_type  = sensor.get("type", "unknown")
+    s_value = sensor.get("value", 0)
+    s_loc   = sensor.get("location", "Unknown")
 
+    prompt = f"""You are RAKSHAK AI, a crisis-detection engine.
 
-async def detect_crisis(state: CrisisState) -> dict:
-    sensor = state["sensor_data"]
+Sensor telemetry received:
+  Type:     {s_type}
+  Value:    {s_value}
+  Location: {s_loc}
+  Extra:    {sensor}
 
-    prompt = f"""You are RAKSHAK AI — a crisis detection engine. Analyze this IoT sensor payload
-and return ONLY a raw JSON object (no markdown, no backticks).
+TASK: Classify this event and determine severity.
 
-Sensor payload: {json.dumps(sensor)}
+FORMAT YOUR RESPONSE EXACTLY like this (use the exact labels):
+CRISIS_TYPE: <one of: smoke, fire, health, cardiac, security, breach, power, water>
+SEVERITY: <integer 1-10>
+ANALYSIS: <2-3 sentence explanation>
+REASONING_STEPS:
+1. <first reasoning step>
+2. <second reasoning step>
+3. <third reasoning step>
 
-Return exactly this structure:
-{{
-  "crisis_type": "<one of: smoke, fire, health, cardiac, security, breach, power, water>",
-  "severity": <integer 1-10>,
-  "sensor_anomaly_score": <float 0-100>,
-  "location_name": "<clean location string>",
-  "initial_assessment": "<2 sentence assessment>"
-}}"""
+Be analytical and reference specific sensor values and thresholds.
+"""
 
     try:
-        resp    = _get_llm().invoke([HumanMessage(content=prompt)])
-        content = resp.content.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
-        detected = json.loads(content)
-    except Exception:
-        detected = {
-            "crisis_type":         sensor.get("type", "smoke"),
-            "severity":            7,
-            "sensor_anomaly_score": float(sensor.get("value", 82)),
-            "location_name":       sensor.get("location", "Unknown location"),
-            "initial_assessment":  f"Anomaly detected: {sensor.get('type', 'unknown')} event.",
-        }
+        resp = _model.generate_content(prompt)
+        text = resp.text.strip()
+    except Exception as e:
+        text = f"CRISIS_TYPE: {s_type}\nSEVERITY: 6\nANALYSIS: Classification fallback — Gemini unreachable ({e})."
 
-    crisis_type    = str(detected.get("crisis_type", "smoke"))
-    severity       = int(detected.get("severity", 7))
-    anomaly_score  = float(detected.get("sensor_anomaly_score", 80))
+    # Parse structured fields
+    crisis_type = s_type
+    severity = 6
+    analysis = text
+    cot_steps = []
 
-    cascade_risk              = compute_cascade_risk(severity, crisis_type)
-    threat_score, threat_level = compute_threat_score(
-        sensor_value=anomaly_score,
-        crisis_type=crisis_type,
-        available_services_ratio=0.8,   # refined after gather_intel
-        cascade_risk=cascade_risk,
-    )
+    for line in text.split("\n"):
+        line_s = line.strip()
+        if line_s.startswith("CRISIS_TYPE:"):
+            crisis_type = line_s.split(":", 1)[1].strip().lower()
+        elif line_s.startswith("SEVERITY:"):
+            try:
+                severity = int(line_s.split(":", 1)[1].strip())
+            except ValueError:
+                pass
+        elif line_s.startswith("ANALYSIS:"):
+            analysis = line_s.split(":", 1)[1].strip()
+        elif line_s and line_s[0].isdigit() and "." in line_s[:3]:
+            step_text = line_s.split(".", 1)[1].strip() if "." in line_s else line_s
+            cot_steps.append(step_text)
 
-    log = {
-        "node":         "detect_crisis",
-        "summary":      f"Type: {crisis_type.upper()} | Severity: {severity}/10 | ThreatScore: {threat_score} ({threat_level})",
-        "data":         detected,
-        "threat_score": threat_score,
-        "threat_level": threat_level,
-    }
+    # Build chain-of-thought from parsed + generated steps
+    chain_of_thought = state.get("chain_of_thought", [])
+    chain_of_thought.append({
+        "node": "detect_crisis",
+        "text": f"Sensor {sensor.get('sensor_id', 'UNKNOWN')} anomaly detected. Type: {crisis_type.upper()}, Value: {s_value}, Location: {s_loc}.",
+        "factors": [f"Sensor value: {s_value}", f"Crisis type: {crisis_type}", f"Location: {s_loc}"],
+    })
+    for step in cot_steps:
+        chain_of_thought.append({
+            "node": "detect_crisis",
+            "text": step,
+        })
+    chain_of_thought.append({
+        "node": "detect_crisis",
+        "text": f"Classification complete: {crisis_type.upper()}, Severity: {severity}/10. {analysis}",
+        "factors": [f"Severity: {severity}/10", f"Analysis: {analysis[:80]}"],
+    })
 
     return {
-        "crisis_type":   crisis_type,
-        "severity":      severity,
-        "location_name": str(detected.get("location_name", sensor.get("location", "Unknown"))),
-        "threat_score":  threat_score,
-        "threat_level":  threat_level,
-        "cascade_risk":  cascade_risk,
-        "agent_log":     state.get("agent_log", []) + [log],
+        "crisis_type": crisis_type,
+        "severity": severity,
+        "gemini_analysis": analysis,
+        "chain_of_thought": chain_of_thought,
     }

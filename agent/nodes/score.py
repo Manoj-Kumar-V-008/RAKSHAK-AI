@@ -1,65 +1,68 @@
-"""
-Node 3 — score_services
-Applies the 4-factor points system and refines the threat score.
-"""
 from ..state import CrisisState
-from ..tools.scoring import score_service, compute_threat_score
+from ..tools.scoring import score_service, compute_threat_score, compute_cascade_risk
 
 
-async def score_services(state: CrisisState) -> dict:
-    services    = state.get("nearby_services", [])
-    traffic_d   = state.get("traffic_data", {})
-    crisis_type = state["crisis_type"]
-    sensor      = state["sensor_data"]
+def score_services(state: CrisisState) -> dict:
+    """
+    Node 3 — SCORE: Evaluates nearby services using the 4-factor scoring
+    algorithm and refines the overall threat assessment.
+    """
+    nearby = state.get("nearby_services", [])
+    crisis_type = state.get("crisis_type", "smoke")
+    severity = state.get("severity", 5)
+    traffic_info = state.get("traffic_info", {})
+    sensor = state.get("sensor_data", {})
 
-    # Score every service
+    chain_of_thought = state.get("chain_of_thought", [])
+
+    chain_of_thought.append({
+        "node": "score_services",
+        "text": f"Applying 4-factor scoring: Distance (30pts) × Traffic (25pts) × Availability (25pts) × Type Match (20pts). Evaluating {len(nearby)} services.",
+        "factors": ["Distance: 30 - (km × 6)", "Traffic: 25 × (1 - congestion)", "Availability: 25/12/0", "Type match: 0-20 from weights table"],
+    })
+
+    # Score each service
     scored = []
-    for svc in services:
-        traffic_info = traffic_d.get(svc["id"], {"congestion_ratio": 0.4})
-        scored.append(score_service(svc, crisis_type, traffic_info))
+    for svc in nearby:
+        svc_traffic = traffic_info.get(svc.get("id", ""), {"congestion_ratio": 0.4})
+        scored_svc = score_service(svc, crisis_type, svc_traffic)
+        scored.append(scored_svc)
 
-    scored.sort(key=lambda x: x["scores"]["total"], reverse=True)
+    # Sort by total score descending
+    scored.sort(key=lambda s: s.get("scores", {}).get("total", 0), reverse=True)
 
-    # Refine threat score now that we know real service availability
-    available = sum(1 for s in services if s.get("is_open") is not False)
-    avail_ratio = available / len(services) if services else 0.5
-
-    anomaly_score = float(sensor.get("value", 80))
+    # Compute threat metrics
+    available_ratio = min(len(scored) / 10, 1.0) if scored else 0
+    cascade_risk = compute_cascade_risk(severity, crisis_type)
+    sensor_value = sensor.get("value", 50)
     threat_score, threat_level = compute_threat_score(
-        sensor_value=anomaly_score,
-        crisis_type=crisis_type,
-        available_services_ratio=avail_ratio,
-        cascade_risk=state.get("cascade_risk", 0.3),
+        sensor_value, crisis_type, available_ratio, cascade_risk
     )
 
-    best_name  = scored[0]["name"] if scored else "N/A"
-    best_total = scored[0]["scores"]["total"] if scored else 0
+    # Add top-3 to chain of thought
+    if scored:
+        top3_text = "; ".join(
+            f"{s.get('name', '?')} ({s.get('service_type', '?')}, {s.get('scores', {}).get('total', 0)}pts, {s.get('distance_km', '?')}km)"
+            for s in scored[:3]
+        )
+        chain_of_thought.append({
+            "node": "score_services",
+            "text": f"Top 3 services: {top3_text}",
+            "factors": [f"#{i+1}: {s.get('name', '?')} — {s.get('scores', {}).get('total', 0)}pts" for i, s in enumerate(scored[:3])],
+            "score": scored[0].get("scores", {}).get("total", 0) if scored else 0,
+        })
 
-    log = {
-        "node":    "score_services",
-        "summary": f"Scored {len(scored)} services. Best: {best_name} ({best_total} pts). Refined ThreatScore: {threat_score} ({threat_level})",
-        "data": {
-            "scores": [
-                {
-                    "name":      s["name"],
-                    "type":      s["service_type"],
-                    "total":     s["scores"]["total"],
-                    "distance":  s["scores"]["distance"],
-                    "traffic":   s["scores"]["traffic"],
-                    "avail":     s["scores"]["availability"],
-                    "type_match": s["scores"]["type_match"],
-                    "dist_km":   s["distance_km"],
-                    "lat":       s["lat"],
-                    "lon":       s["lon"],
-                }
-                for s in scored[:6]
-            ]
-        },
-    }
+    chain_of_thought.append({
+        "node": "score_services",
+        "text": f"Threat assessment refined: Score {threat_score}/100 ({threat_level}). Cascade risk: {cascade_risk*100:.1f}%. Service availability: {available_ratio*100:.0f}%.",
+        "factors": [f"Threat: {threat_score}/100", f"Level: {threat_level}", f"Cascade: {cascade_risk*100:.1f}%"],
+    })
 
     return {
         "scored_services": scored,
-        "threat_score":    threat_score,
-        "threat_level":    threat_level,
-        "agent_log":       state.get("agent_log", []) + [log],
+        "threat_score": threat_score,
+        "threat_level": threat_level,
+        "cascade_risk": cascade_risk,
+        "refined_threat_score": threat_score,
+        "chain_of_thought": chain_of_thought,
     }
