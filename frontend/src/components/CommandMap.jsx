@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AgentGraph from './AgentGraph';
-import FacilityTwin from './FacilityTwin';
+import FacilityTwin3D from './FacilityTwin3D';
 import CrisisSimulator from './CrisisSimulator';
 import ThreatGauge from './ThreatGauge';
 import ChainOfThought from './ChainOfThought';
 import IncidentTimeline from './IncidentTimeline';
 import ConfirmationModal from './ConfirmationModal';
 import EmergencyContacts from './EmergencyContacts';
+import TopBarControls from './TopBarControls';
 import useAutonomousAgent from '../hooks/useAutonomousAgent';
 import { setMuted, getMuted } from './AudioEngine';
 
@@ -42,41 +43,109 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ─── Fallback Bangalore emergency services (used when Overpass API is down) ───
+const FALLBACK_SERVICES_RAW = [
+  // Police Stations
+  { type: 'police', name: 'Cubbon Park Police Station', lat: 12.9763, lng: 77.5929, phone: '+91-80-22942400' },
+  { type: 'police', name: 'MG Road Police Station', lat: 12.9756, lng: 77.6068, phone: '+91-80-25320242' },
+  { type: 'police', name: 'Halasuru Gate Police Station', lat: 12.9810, lng: 77.6130, phone: '+91-80-25560242' },
+  { type: 'police', name: 'Sadashivanagar Police Station', lat: 12.9950, lng: 77.5810, phone: '+91-80-23610242' },
+  { type: 'police', name: 'Shivajinagar Police Station', lat: 12.9857, lng: 77.6050, phone: '+91-80-25571818' },
+  { type: 'police', name: 'Ashok Nagar Police Station', lat: 12.9620, lng: 77.5880, phone: '+91-80-26700242' },
+  { type: 'police', name: 'Wilson Garden Police Station', lat: 12.9505, lng: 77.5960, phone: '+91-80-26530242' },
+  { type: 'police', name: 'High Grounds Police Station', lat: 12.9880, lng: 77.5870, phone: '+91-80-22250242' },
+  { type: 'police', name: 'Basavanagudi Police Station', lat: 12.9420, lng: 77.5740, phone: '+91-80-26601144' },
+  { type: 'police', name: 'Cottonpete Police Station', lat: 12.9650, lng: 77.5700, phone: '+91-80-26700133' },
+  // Fire Stations
+  { type: 'fire_station', name: 'Seshadripuram Fire Station', lat: 12.9890, lng: 77.5749, phone: '+91-80-22971500' },
+  { type: 'fire_station', name: 'MG Road Fire Station', lat: 12.9740, lng: 77.6110, phone: '+91-80-25321500' },
+  { type: 'fire_station', name: 'Bangalore Central Fire Station', lat: 12.9780, lng: 77.5900, phone: '+91-80-22971234' },
+  { type: 'fire_station', name: 'Shivajinagar Fire Station', lat: 12.9830, lng: 77.6010, phone: '+91-80-25571234' },
+  { type: 'fire_station', name: 'Basavanagudi Fire Station', lat: 12.9440, lng: 77.5750, phone: '+91-80-26601234' },
+  { type: 'fire_station', name: 'Malleswaram Fire Station', lat: 12.9960, lng: 77.5650, phone: '+91-80-23341500' },
+  // Hospitals
+  { type: 'hospital', name: 'Manipal Hospital (Old Airport Rd)', lat: 12.9614, lng: 77.6469, phone: '+91-80-25024444' },
+  { type: 'hospital', name: 'St. John\'s Medical College Hospital', lat: 12.9295, lng: 77.6224, phone: '+91-80-22065000' },
+  { type: 'hospital', name: 'Bowring & Lady Curzon Hospital', lat: 12.9826, lng: 77.6053, phone: '+91-80-25591325' },
+  { type: 'hospital', name: 'Victoria Hospital', lat: 12.9582, lng: 77.5723, phone: '+91-80-26701150' },
+  { type: 'hospital', name: 'Apollo Hospital (Sheshadripuram)', lat: 12.9910, lng: 77.5780, phone: '+91-80-23296666' },
+  { type: 'hospital', name: 'Fortis Hospital (Cunningham Rd)', lat: 12.9870, lng: 77.5880, phone: '+91-80-66214444' },
+  { type: 'hospital', name: 'Ramaiah Memorial Hospital', lat: 12.9980, lng: 77.5660, phone: '+91-80-23601723' },
+  { type: 'hospital', name: 'Baptist Hospital', lat: 12.9445, lng: 77.5800, phone: '+91-80-22094000' },
+  { type: 'hospital', name: 'Jayadeva Institute of Cardiology', lat: 12.9351, lng: 77.6116, phone: '+91-80-26580738' },
+  { type: 'hospital', name: 'Sparsh Hospital (Infantry Rd)', lat: 12.9840, lng: 77.5960, phone: '+91-80-41275200' },
+  { type: 'hospital', name: 'Sagar Hospital', lat: 12.9260, lng: 77.5850, phone: '+91-80-42064206' },
+  { type: 'hospital', name: 'Mallya Hospital', lat: 12.9770, lng: 77.5935, phone: '+91-80-22277979' },
+];
+
+function buildFallbackServices(lat, lng) {
+  return FALLBACK_SERVICES_RAW.map((s, i) => ({
+    id: `fallback-${i}`,
+    ...s,
+    distance: haversine(lat, lng, s.lat, s.lng),
+    ...SERVICE_TYPES[s.type],
+  })).sort((a, b) => a.distance - b.distance);
+}
+
+// Overpass API endpoints to try (primary + mirrors)
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+
 async function fetchNearbyServices(lat, lng, radiusMeters = 5000) {
   const queries = Object.entries(SERVICE_TYPES).map(([, svc]) => {
     return `node${svc.query}(around:${radiusMeters},${lat},${lng});way${svc.query}(around:${radiusMeters},${lat},${lng});`;
   });
   const overpassQuery = `[out:json][timeout:15];(${queries.join('\n')});out center body;`;
-  try {
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `data=${encodeURIComponent(overpassQuery)}`,
-    });
-    if (!res.ok) throw new Error(`Overpass API error: ${res.status}`);
-    const data = await res.json();
-    const services = [];
-    for (const el of data.elements) {
-      const elLat = el.lat || el.center?.lat;
-      const elLng = el.lon || el.center?.lon;
-      if (!elLat || !elLng) continue;
-      const amenity = el.tags?.amenity;
-      if (!SERVICE_TYPES[amenity]) continue;
-      services.push({
-        id: el.id, type: amenity,
-        name: el.tags?.name || el.tags?.['name:en'] || SERVICE_TYPES[amenity].label,
-        phone: el.tags?.phone || el.tags?.['contact:phone'] || null,
-        lat: elLat, lng: elLng,
-        distance: haversine(lat, lng, elLat, elLng),
-        ...SERVICE_TYPES[amenity],
+
+  // Try each Overpass endpoint
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(overpassQuery)}`,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        console.warn(`Overpass endpoint ${endpoint} returned ${res.status}, trying next...`);
+        continue;
+      }
+      const data = await res.json();
+      const services = [];
+      for (const el of data.elements) {
+        const elLat = el.lat || el.center?.lat;
+        const elLng = el.lon || el.center?.lon;
+        if (!elLat || !elLng) continue;
+        const amenity = el.tags?.amenity;
+        if (!SERVICE_TYPES[amenity]) continue;
+        services.push({
+          id: String(el.id), type: amenity,
+          name: el.tags?.name || el.tags?.['name:en'] || SERVICE_TYPES[amenity].label,
+          phone: el.tags?.phone || el.tags?.['contact:phone'] || null,
+          lat: elLat, lng: elLng,
+          distance: haversine(lat, lng, elLat, elLng),
+          ...SERVICE_TYPES[amenity],
+        });
+      }
+      if (services.length > 0) {
+        services.sort((a, b) => a.distance - b.distance);
+        console.log(`✅ Overpass API: loaded ${services.length} services from ${endpoint}`);
+        return services;
+      }
+    } catch (err) {
+      console.warn(`Overpass endpoint ${endpoint} failed:`, err.message);
     }
-    services.sort((a, b) => a.distance - b.distance);
-    return services;
-  } catch (err) {
-    console.error('Overpass API fetch failed:', err);
-    return [];
   }
+
+  // All endpoints failed — use fallback data
+  console.warn('⚠️ All Overpass endpoints failed. Using fallback Bangalore emergency services.');
+  return buildFallbackServices(lat, lng);
 }
 
 const mono = "var(--font-mono, 'JetBrains Mono', monospace)";
@@ -108,7 +177,8 @@ export default function CommandMap({ hospitalityType, userEmail }) {
 
   // ═══ Crisis State ═══
   const [crisisInfo, setCrisisInfo] = useState({ active: false, type: null });
-  const [audioMuted, setAudioMutedLocal] = useState(getMuted());
+  const [notifications, setNotifications] = useState([]);
+  const [audioMuted, setAudioMutedLocal] = useState(() => getMuted());
 
   useEffect(() => {
     if (!crisisInfo.active) return;
@@ -119,13 +189,33 @@ export default function CommandMap({ hospitalityType, userEmail }) {
   }, [crisisInfo.active]);
 
   // ═══ Autonomous Agent ═══
+  const addNotification = useCallback((type, message) => {
+    setNotifications(prev => [{
+      id: Date.now() + Math.random(),
+      type,
+      message,
+      time: new Date().toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      read: false,
+    }, ...prev].slice(0, 50));
+  }, []);
+
   const agentState = useAutonomousAgent({
     hospitalityType, services, mapCenter,
     onCrisisUpdate: (info) => {
       setCrisisInfo(prev => {
-        if (!info.active && prev.active) return { ...prev, active: false, respondersActive: false };
+        if (!info.active && prev.active) {
+          addNotification('system', 'Crisis resolved. All units returning to standby.');
+          return { ...prev, active: false, respondersActive: false };
+        }
         return { ...prev, ...info };
       });
+      // Generate notifications for real events
+      if (info.active && info.sensorData) {
+        addNotification('crisis', `CRISIS DETECTED: ${(info.sensorData.type || 'UNKNOWN').toUpperCase()} at ${info.sensorData.location || 'Unknown'}`);
+      }
+      if (info.respondersActive) {
+        addNotification('dispatch', `Emergency units dispatched to ${info.sensorData?.location || 'incident site'}`);
+      }
       if (mapInstanceRef.current && services.length > 0) plotServices(services, mapInstanceRef.current, info);
     },
   });
@@ -138,11 +228,18 @@ export default function CommandMap({ hospitalityType, userEmail }) {
     const bootTimers = [
       setTimeout(() => agentState.addEntry('SYSTEM', `Command center initialized — ${hospitalityType?.label || 'Operations'} mode active.`), 300),
       setTimeout(() => agentState.addEntry('SYSTEM', `Geofence locked: Bangalore sector. ${services.length} emergency resources detected.`), 1200),
-      setTimeout(() => { agentState.addEntry('INTEL', 'IoT sensor mesh connected... 47 nodes online. Anomaly detection armed.'); agentState.addComms('SENSOR MESH HANDSHAKE COMPLETE. 47/47 NODES ACTIVE.'); }, 2400),
-      setTimeout(() => agentState.addEntry('SYSTEM', 'Gemini reasoning engine online. Chain-of-thought logging active. Awaiting sensor data.'), 3600),
+      setTimeout(() => { 
+        agentState.addEntry('INTEL', 'IoT sensor mesh connected... 47 nodes online. Anomaly detection armed.'); 
+        agentState.addComms('SENSOR MESH HANDSHAKE COMPLETE. 47/47 NODES ACTIVE.'); 
+        addNotification('system', 'IoT sensor mesh connected. 47 nodes online.');
+      }, 2400),
+      setTimeout(() => {
+        agentState.addEntry('SYSTEM', 'Gemini reasoning engine online. Chain-of-thought logging active. Awaiting sensor data.');
+        addNotification('system', 'Command Center v3.0 fully operational. Awaiting intel.');
+      }, 3600),
     ];
     return () => bootTimers.forEach(clearTimeout);
-  }, [services?.length, agentBooted]);
+  }, [services?.length, agentBooted, hospitalityType, agentState, addNotification]);
 
   useEffect(() => {
     if (!agentBooted) return;
@@ -208,10 +305,21 @@ export default function CommandMap({ hospitalityType, userEmail }) {
     const destLng = mapCenter?.lng || MG_ROAD_FALLBACK.lng;
     const activePoints = [[destLat, destLng]];
 
-    servicesList.forEach((svc) => {
-      const isAlerted = crisis?.active && Array.isArray(crisis?.alertedNodes) && crisis.alertedNodes.includes(svc.id);
+    // Merge servicesList and crisis.services
+    const allServicesMap = new Map();
+    servicesList.forEach(s => allServicesMap.set(String(s.id), s));
+    if (crisis?.services && Array.isArray(crisis.services)) {
+      crisis.services.forEach(s => {
+         if (s.lat && s.lon) s.lng = s.lon; // Normalize lon -> lng for leaflet
+         allServicesMap.set(String(s.id), { ...SERVICE_TYPES[s.type || s.service_type], ...s });
+      });
+    }
+    const mergedServices = Array.from(allServicesMap.values());
+
+    mergedServices.forEach((svc) => {
+      const isAlerted = crisis?.active && Array.isArray(crisis?.alertedNodes) && crisis.alertedNodes.some(id => String(id) === String(svc.id));
       const icon = createServiceIcon(svc, isAlerted);
-      const marker = L.marker([svc.lat, svc.lng], { icon });
+      const marker = L.marker([svc.lat, svc.lng || svc.lon], { icon });
       marker.bindPopup(
         `<div style="font-family:${mono};color:#E8ECF4;background:rgba(11,14,20,0.95);padding:14px 16px;border:1px solid ${svc.borderColor};border-radius:12px;min-width:210px;box-shadow:0 8px 32px rgba(0,0,0,0.5);backdrop-filter:blur(20px);">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
@@ -271,10 +379,16 @@ export default function CommandMap({ hospitalityType, userEmail }) {
   }, [userLocation, mapCenter]);
 
   // ═══ Map Initialization ═══
+  const mapInitialized = useRef(false);
   useEffect(() => {
     const L = window.L;
-    if (!L || !mapRef.current || mapInstanceRef.current) return;
-    if (mapRef.current._leaflet_id) return;
+    if (!L || !mapRef.current || mapInitialized.current) return;
+    mapInitialized.current = true;
+
+    // Clean up any stale leaflet instance on the DOM element
+    if (mapRef.current._leaflet_id) {
+      delete mapRef.current._leaflet_id;
+    }
 
     const initMap = (center, zoom = 15) => {
       const map = L.map(mapRef.current, {
@@ -339,7 +453,13 @@ export default function CommandMap({ hospitalityType, userEmail }) {
       { enableHighAccuracy: true, timeout: 8000 }
     );
 
-    return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+      mapInitialized.current = false;
+    };
   }, []);
 
   // ═══ Computed ═══
@@ -437,16 +557,23 @@ export default function CommandMap({ hospitalityType, userEmail }) {
           )}
         </div>
 
-        {/* Right */}
+        {/* Right: Working controls */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full pulse-glow" style={{ background: 'var(--command-teal)', boxShadow: '0 0 8px var(--command-teal)' }} />
             <span style={{ fontFamily: mono, fontSize: 10, color: 'var(--command-teal)', letterSpacing: 1, fontWeight: 600 }}>LIVE</span>
           </div>
-          <div className="text-right">
+          <div className="text-right" style={{ marginRight: 4 }}>
             <p style={{ fontFamily: mono, fontSize: 11, color: 'var(--command-teal)', fontWeight: 600, lineHeight: 1.1, letterSpacing: 1 }}>{formatTime(currentTime)}</p>
             <p style={{ fontFamily: mono, fontSize: 7, color: 'var(--text-dim)', letterSpacing: 1 }}>{formatDate(currentTime)}</p>
           </div>
+          <TopBarControls
+            userEmail={userEmail}
+            notifications={notifications}
+            onClearNotification={(id) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))}
+            onClearAll={() => setNotifications([])}
+            onLogout={() => window.location.reload()}
+          />
         </div>
       </header>
 
@@ -657,17 +784,17 @@ export default function CommandMap({ hospitalityType, userEmail }) {
           )}
         </AnimatePresence>
 
-        {/* Facility Twin */}
+        {/* Facility Twin 3D */}
         <AnimatePresence>
-          {facilityVisible && !agentState.isProcessing && (
+          {facilityVisible && (
             <motion.div className="cmd-facility-overlay" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
-              <button onClick={() => setFacilityVisible(false)} style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(0,242,255,0.1)', borderRadius: 6, padding: '2px 6px', cursor: 'pointer', color: 'var(--text-dim)', fontFamily: mono, fontSize: 10 }}>✕</button>
-              <FacilityTwin crisisInfo={crisisInfo} evacuationZone={agentState.evacuationZone} alertMessage={agentState.alertMessage} />
+              <button onClick={() => setFacilityVisible(false)} style={{ position: 'absolute', top: 4, right: 4, zIndex: 60, background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(0,242,255,0.1)', borderRadius: 6, padding: '2px 6px', cursor: 'pointer', color: 'var(--text-dim)', fontFamily: mono, fontSize: 10 }}>✕</button>
+              <FacilityTwin3D crisisInfo={crisisInfo} evacuationZone={agentState.evacuationZone} alertMessage={agentState.alertMessage} />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {!facilityVisible && !agentState.isProcessing && (
+        {!facilityVisible && (
           <motion.button initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={() => setFacilityVisible(true)} className="absolute bottom-4 right-4"
             style={{ zIndex: 30, padding: '6px 12px', borderRadius: 8, background: 'rgba(8,10,16,0.9)', border: '1px solid rgba(0,242,255,0.1)', cursor: 'pointer', fontFamily: mono, fontSize: 8, color: 'var(--command-teal)', letterSpacing: 1 }}>
             🏗 FACILITY TWIN

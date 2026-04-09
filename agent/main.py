@@ -139,6 +139,7 @@ async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_
                             "refined_threat_score": node_out.get("threat_score", 0),
                             "data": [
                                 {
+                                    "id":           s.get("id"),
                                     "name":         s["name"],
                                     "type":         s["service_type"],
                                     "total":        s["scores"]["total"],
@@ -173,6 +174,12 @@ async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_
                         "type":    "node_result",
                         "node":    n,
                         "summary": entry.get("summary", ""),
+                    })
+
+                if "chain_of_thought" in node_out:
+                    await _send(session_id, {
+                        "type": "chain_of_thought",
+                        "data": node_out["chain_of_thought"]
                     })
 
         # ── resolved ─────────────────────────────────────────────────────────

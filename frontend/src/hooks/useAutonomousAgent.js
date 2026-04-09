@@ -163,7 +163,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     } catch { return []; }
   });
   const [smsResults, setSmsResults] = useState([]);
-  const [audioMuted, setAudioMuted] = useState(false);
+  const [audioMuted, setAudioMuted] = useState(() => getMuted());
 
   const pythonWsRef = useRef(null);
   const sessionIdRef = useRef(null);
@@ -379,7 +379,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
         const types = [...new Set(dispatched.map(s => s.service_type ?? s.type))].filter(Boolean);
         onCrisisUpdate?.({
           active: true, types: types.length > 0 ? types : ['hospital'],
-          alertedNodes: dispatched.map(s => s.id), sensorData: null,
+          alertedNodes: dispatched.map(s => String(s.id)), sensorData: null,
           services: dispatched, respondersActive: true, bestService: dispatched[0],
         });
         playDispatchConfirm();
@@ -387,6 +387,15 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
       }
       case 'evacuation':
         if (msg.zones?.length > 0) triggerEvacuation(msg.zones[0], msg.message);
+        break;
+      case 'chain_of_thought':
+        setChainOfThought((msg.data || []).map((step) => ({
+          node: step.node,
+          text: step.text,
+          factors: step.factors || [],
+          score: step.score,
+          time: step.time || new Date().toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        })));
         break;
       case 'node_result':
         addEntry('ANALYSIS', `✔ [${(msg.node ?? '').toUpperCase().replace(/_/g, ' ')}] ${msg.summary ?? ''}`);
@@ -413,30 +422,51 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     }
   }
 
-  // ── WebSocket connection ───────────────────────────────────────────────────
+  // ── WebSocket connection (with exponential backoff) ─────────────────────────
   useEffect(() => {
     const sid = `ui-${Date.now()}`;
     sessionIdRef.current = sid;
-    let ws, reconnectTimer;
+    let ws, reconnectTimer, retryCount = 0;
+    const MAX_RETRIES = 10;
+    let isMounted = true;
 
     function connect() {
+      if (!isMounted || retryCount >= MAX_RETRIES) return;
       try {
         ws = new WebSocket(`${PYTHON_WS_URL}/ws/${sid}`);
         pythonWsRef.current = ws;
-        ws.onopen = () => addComms('🔗 Python LangGraph agent WebSocket connected.');
+        ws.onopen = () => {
+          retryCount = 0; // Reset on successful connection
+          addComms('🔗 Python LangGraph agent WebSocket connected.');
+        };
         ws.onmessage = (ev) => { try { handlePythonMessage(JSON.parse(ev.data)); } catch (_) {} };
-        ws.onclose = () => { reconnectTimer = setTimeout(connect, 4000); };
-        ws.onerror = () => {};
+        ws.onclose = () => {
+          if (!isMounted) return;
+          retryCount++;
+          const delay = Math.min(4000 * Math.pow(1.5, retryCount - 1), 60000);
+          reconnectTimer = setTimeout(connect, delay);
+        };
+        ws.onerror = () => {}; // Suppress — onclose handles reconnect
       } catch (_) {}
     }
     connect();
 
-    const socket = io(NODE_BACKEND_URL, { transports: ['websocket', 'polling'] });
+    const socket = io(NODE_BACKEND_URL, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 3000,
+      reconnectionDelayMax: 15000,
+    });
     socket.on('connect', () => addComms('📡 Node.js relay uplink active.'));
     socket.on('audit_log', (entry) => setActionLog((p) => [...p, entry].slice(-80)));
     socket.on('disconnect', () => {});
 
-    return () => { clearTimeout(reconnectTimer); ws?.close(); socket.disconnect(); };
+    return () => {
+      isMounted = false;
+      clearTimeout(reconnectTimer);
+      ws?.close();
+      socket.disconnect();
+    };
   }, []);
 
   // ── processCrisis — THE main function ──────────────────────────────────────

@@ -4,7 +4,7 @@
  */
 
 let audioCtx = null;
-let isMuted = false;
+let isMuted = true;
 
 function getCtx() {
   if (!audioCtx) {
