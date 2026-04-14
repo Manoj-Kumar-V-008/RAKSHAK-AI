@@ -63,7 +63,10 @@ RULES:
 
 RESPOND IN THIS EXACT FORMAT:
 SELECTED: <comma-separated names of selected services>
-REASONING: <1-2 sentences explaining your choices>
+REASONING_STEPS:
+1. <step 1: analyze the crisis needs>
+2. <step 2: evaluate the top candidates>
+3. <step 3: finalize the decision>
 REJECTED: <for each non-selected service, one line: name | reason for rejection>
 """
 
@@ -71,11 +74,11 @@ REJECTED: <for each non-selected service, one line: name | reason for rejection>
         resp = _model.generate_content(prompt)
         text = resp.text.strip()
     except Exception as e:
-        text = f"SELECTED: {candidates[0].get('name', 'Unknown') if candidates else 'None'}\nREASONING: Fallback selection due to Gemini error ({e})"
+        text = f"SELECTED: {candidates[0].get('name', 'Unknown') if candidates else 'None'}\nREASONING_STEPS:\n1. Fallback selection due to Gemini error ({e})\nREJECTED:"
 
     # Parse response
     selected_names = set()
-    reasoning = ""
+    cot_steps = []
     rejected_list = []
 
     for line in text.split("\n"):
@@ -83,8 +86,9 @@ REJECTED: <for each non-selected service, one line: name | reason for rejection>
         if line_s.startswith("SELECTED:"):
             names = line_s.split(":", 1)[1].strip()
             selected_names = {n.strip().lower() for n in names.split(",")}
-        elif line_s.startswith("REASONING:"):
-            reasoning = line_s.split(":", 1)[1].strip()
+        elif line_s and line_s[0].isdigit() and "." in line_s[:3]:
+            step_text = line_s.split(".", 1)[1].strip() if "." in line_s else line_s
+            cot_steps.append(step_text)
         elif "|" in line_s and not line_s.startswith("SELECTED") and not line_s.startswith("REASONING"):
             parts = line_s.split("|", 1)
             rejected_list.append({
@@ -118,14 +122,15 @@ REJECTED: <for each non-selected service, one line: name | reason for rejection>
 
     # Build chain-of-thought
     chain_of_thought = state.get("chain_of_thought", [])
+    for step in cot_steps:
+        chain_of_thought.append({
+            "node": "decide_dispatch",
+            "text": step
+        })
+    
     chain_of_thought.append({
         "node": "decide_dispatch",
-        "text": f"Evaluating {len(candidates)} candidates across {len(top_by_type)} service types. Severity {severity} requires {'tri-service' if severity >= 7 else 'focused'} response.",
-        "factors": [f"{len(candidates)} candidates", f"Severity: {severity}/10", f"Required types: {len(top_by_type)}"],
-    })
-    chain_of_thought.append({
-        "node": "decide_dispatch",
-        "text": f"DECISION: {reasoning}",
+        "text": f"FINAL DECISION MADE: Dispatch instructions locked.",
         "factors": [f"Selected: {', '.join(s.get('name', '?') for s in dispatched)}"],
     })
     if rejected_list:
@@ -140,7 +145,7 @@ REJECTED: <for each non-selected service, one line: name | reason for rejection>
 
     return {
         "dispatched_services": dispatched,
-        "dispatch_reasoning": reasoning,
+        "dispatch_reasoning": " ".join(cot_steps),
         "rejected_services": rejected_list,
         "chain_of_thought": chain_of_thought,
         "confirmation_required": confirmation_required,

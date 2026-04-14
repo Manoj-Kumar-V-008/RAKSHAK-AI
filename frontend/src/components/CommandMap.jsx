@@ -773,13 +773,16 @@ export default function CommandMap({ hospitalityType, userEmail }) {
                 background: 'rgba(3,5,8,0.95)', border: '1px solid rgba(0,242,255,0.08)',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
                 backdropFilter: 'blur(20px)',
+                display: 'flex', flexDirection: 'column'
               }}
             >
-              <ChainOfThought
-                steps={agentState.chainOfThought}
-                activeNode={agentState.activeNode}
-                isProcessing={agentState.isProcessing}
-              />
+              <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+                <ChainOfThought
+                  steps={agentState.chainOfThought}
+                  activeNode={agentState.activeNode}
+                  isProcessing={agentState.isProcessing}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
