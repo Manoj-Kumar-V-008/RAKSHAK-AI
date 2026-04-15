@@ -57,6 +57,17 @@ async def alert_venue(state: CrisisState) -> dict:
         f"🚨 EMERGENCY ALERT: {crisis_type.upper()} — Follow emergency protocol immediately.",
     )
 
+    chain_of_thought = state.get("chain_of_thought", [])
+    chain_of_thought.append({
+        "node": "alert_venue",
+        "text": "Evacuation plan finalized and venue alert messaging prepared.",
+        "factors": [
+            f"Human approval status: {state.get('confirmation_status', 'auto_approved')}",
+            f"Zones: {', '.join(zones)}",
+            f"Severity: {severity}/10",
+        ],
+    })
+
     log = {
         "node":    "alert_venue",
         "summary": f"Evacuating {len(zones)} zone(s): {', '.join(zones)}",
@@ -66,6 +77,7 @@ async def alert_venue(state: CrisisState) -> dict:
     return {
         "evacuation_zones": zones,
         "alert_message":    alert_msg,
+        "chain_of_thought": chain_of_thought,
         "is_resolved":      True,
         "agent_log":        state.get("agent_log", []) + [log],
     }

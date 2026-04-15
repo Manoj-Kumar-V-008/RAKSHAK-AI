@@ -206,6 +206,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
   const [neuralOpen, setNeuralOpen] = useState(false);
   const [devConsoleOpen, setDevConsoleOpen] = useState(false);
   const [facilityVisible, setFacilityVisible] = useState(true);
+  const [cotHovering, setCotHovering] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [sidebarTab, setSidebarTab] = useState('timeline'); // timeline | contacts | services
   const SERVICES_PER_PAGE = 10;
@@ -251,7 +252,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
       if (info.respondersActive) {
         addNotification('dispatch', `Emergency units dispatched to ${info.sensorData?.location || 'incident site'}`);
       }
-      if (mapInstanceRef.current && services.length > 0) plotServices(services, mapInstanceRef.current, info);
+      if (mapInstanceRef.current) plotServices(services, mapInstanceRef.current, info);
     },
   });
 
@@ -417,6 +418,24 @@ export default function CommandMap({ hospitalityType, userEmail }) {
     if (mapInstanceRef.current && loc) mapInstanceRef.current.flyTo([loc.lat, loc.lng], 16, { duration: 1.2 });
   }, [userLocation, mapCenter]);
 
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (cotHovering) {
+      map.scrollWheelZoom?.disable?.();
+      map.dragging?.disable?.();
+    } else {
+      map.scrollWheelZoom?.enable?.();
+      map.dragging?.enable?.();
+    }
+
+    return () => {
+      map.scrollWheelZoom?.enable?.();
+      map.dragging?.enable?.();
+    };
+  }, [cotHovering]);
+
   // ═══ Map Initialization ═══
   const mapInitialized = useRef(false);
   useEffect(() => {
@@ -527,14 +546,14 @@ export default function CommandMap({ hospitalityType, userEmail }) {
         visible={agentState.confirmationVisible}
         dispatchPlan={(agentState.confirmationData?.services || []).map(s => ({
           name: s.name, type: s.type,
-          distance: s.distance?.toFixed(1) || '1.0',
-          score: s.score || 85,
+          distance: s.distance != null ? s.distance : 1.0,
+          score: s.scores?.total || s.score || 85,
         }))}
         reasoning={agentState.confirmationData?.reasoning || ''}
         threatScore={agentState.threatLevel}
         crisisType={agentState.confirmationData?.sensorData?.type || ''}
         contacts={agentState.emergencyContacts}
-        countdownSeconds={12}
+        countdownSeconds={agentState.confirmationData?.countdownSeconds || 10}
         onApprove={agentState.handleConfirmApprove}
         onReject={agentState.handleConfirmReject}
       />
@@ -806,14 +825,23 @@ export default function CommandMap({ hospitalityType, userEmail }) {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
+              onMouseEnter={() => setCotHovering(true)}
+              onMouseLeave={() => setCotHovering(false)}
+              onMouseDownCapture={(e) => e.stopPropagation()}
+              onPointerEnter={() => setCotHovering(true)}
+              onPointerLeave={() => setCotHovering(false)}
+              onTouchMoveCapture={(e) => e.stopPropagation()}
+              onWheelCapture={(e) => e.stopPropagation()}
               style={{
-                position: 'absolute', top: 12, right: 12, width: 340, maxHeight: 'calc(100% - 80px)',
-                zIndex: 30, borderRadius: 14, overflow: 'hidden',
+                position: 'absolute', top: 12, right: 12, bottom: facilityVisible ? 264 : 12, width: 340,
+                zIndex: 60, borderRadius: 14, overflow: 'hidden',
                 background: 'rgba(3,5,8,0.95)', border: '1px solid rgba(0,242,255,0.08)',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
                 backdropFilter: 'blur(20px)',
                 display: 'flex', flexDirection: 'column',
                 pointerEvents: 'auto',
+                touchAction: 'pan-y',
+                overscrollBehavior: 'contain',
               }}
               className="map-cot-panel"
             >

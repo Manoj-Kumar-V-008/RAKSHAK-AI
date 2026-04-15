@@ -94,6 +94,16 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
   const pythonWsRef = useRef(null);
   const sessionIdRef = useRef(null);
   const latestSensorDataRef = useRef(null);
+  const onCrisisUpdateRef = useRef(onCrisisUpdate);
+  const confirmationVisibleRef = useRef(false);
+
+  useEffect(() => {
+    confirmationVisibleRef.current = confirmationVisible;
+  }, [confirmationVisible]);
+
+  useEffect(() => {
+    onCrisisUpdateRef.current = onCrisisUpdate;
+  }, [onCrisisUpdate]);
 
   // Persist contacts
   useEffect(() => {
@@ -139,6 +149,22 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
   const addCOTStep = useCallback((node, text, factors = [], score = undefined) => {
     const time = new Date().toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setChainOfThought(prev => [...prev, { node, text, factors, score, time }]);
+  }, []);
+
+  const sendDispatchConfirmation = useCallback((approved) => {
+    const ws = pythonWsRef.current;
+    const sessionId = sessionIdRef.current;
+
+    if (!ws || ws.readyState !== WebSocket.OPEN || !sessionId) {
+      return false;
+    }
+
+    try {
+      ws.send(JSON.stringify({ type: 'dispatch_confirmation', approved }));
+      return true;
+    } catch (_) {
+      return false;
+    }
   }, []);
 
   // ── Send SMS via Node.js backend on Render ─────────────────────────────────
@@ -192,18 +218,37 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     addCOTStep('alert_venue', 'Dispatch confirmed by operator. Initiating multi-channel alert protocol: SMS to emergency contacts, venue PA system activation, and emergency service coordination.', ['Operator approval received', 'SMS queue initiated', 'PA system alert prepared']);
 
     if (confirmationData) {
-      const { sensorData, services: dispatchedServices, targetType } = confirmationData;
+      const {
+        sensorData,
+        services: dispatchedServices,
+        targetType,
+        types,
+        serviceReasons,
+        bestService,
+      } = confirmationData;
+      const liveAgentResumed = sendDispatchConfirmation(true);
+      const dispatchTypes = types?.length ? types : dispatchedServices.map(s => s.type).filter(Boolean);
 
       setSystemStatus(STATUS.DISPATCHING);
+      setIsProcessing(true);
+      setActiveNode('alert_venue');
       setDispatchProgress(dispatchedServices.map(s => ({
         name: s.name, type: s.type, progress: 100, done: true,
-        reason: `Closest unit — ${s.distance?.toFixed(1)}km`, score: null,
+        reason: s.distance != null ? `Closest unit — ${s.distance.toFixed(1)}km` : 'Closest available unit',
+        score: s.scores?.total ?? null,
       })));
 
       onCrisisUpdate?.({
-        active: true, type: targetType,
-        alertedNodes: dispatchedServices.map(s => s.id),
-        sensorData, services: dispatchedServices, respondersActive: true,
+        active: true,
+        type: sensorData?.type ?? targetType,
+        types: dispatchTypes,
+        alertedNodes: dispatchedServices.map(s => String(s.id)),
+        sensorData,
+        services: dispatchedServices,
+        respondersActive: true,
+        serviceReasons: serviceReasons || {},
+        bestService: bestService || dispatchedServices[0],
+        awaitingConfirmation: false,
       });
 
       // Trigger SMS
@@ -213,6 +258,12 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
         8
       );
 
+      if (liveAgentResumed) {
+        setConfirmationData(null);
+        addComms('Approval sent to Python LangGraph agent. Awaiting live alert node output.');
+        return;
+        addComms('âœ… Approval sent to Python LangGraph agent. Awaiting live alert node output.');
+      } else {
       // Evacuation
       if (sensorData?.location) {
         setTimeout(() => {
@@ -245,15 +296,21 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
           onCrisisUpdate?.({ active: false, type: null });
         }, 12000);
       }, 6000);
+      }
+
+      setConfirmationData(null);
     }
-  }, [confirmationData, onCrisisUpdate, sendSMSAlerts, triggerEvacuation, addEntry, addCOTStep, emergencyContacts.length]);
+  }, [confirmationData, onCrisisUpdate, sendSMSAlerts, triggerEvacuation, addEntry, addCOTStep, addComms, emergencyContacts.length, sendDispatchConfirmation]);
 
   const handleConfirmReject = useCallback(() => {
+    sendDispatchConfirmation(false);
     setConfirmationVisible(false);
+    setConfirmationData(null);
     setIsProcessing(false);
     setSystemStatus(STATUS.NOMINAL);
     setThreatLevel(20);
     setActiveNode(null);
+    setDispatchProgress([]);
     addEntry('CONFIRM', '✕ DISPATCH REJECTED by operator. Standing down.');
     addCOTStep('confirm', 'Dispatch rejected. Maintaining elevated monitoring state. Operator may re-evaluate situation.', ['Dispatch cancelled', 'Monitoring continues', 'Re-trigger available']);
     setTimeout(() => {
@@ -263,7 +320,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
       setChainOfThought([]);
       onCrisisUpdate?.({ active: false, type: null });
     }, 5000);
-  }, [addEntry, addCOTStep, onCrisisUpdate]);
+  }, [addEntry, addCOTStep, onCrisisUpdate, sendDispatchConfirmation]);
 
   // ── Python LangGraph WebSocket handler ─────────────────────────────────────
   function handlePythonMessage(msg) {
@@ -318,15 +375,64 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
           ])
         );
 
-        setSystemStatus(STATUS.DISPATCHING);
-        setDispatchProgress(dispatched.map(svc => ({
-          name: svc.name ?? 'Unit', type: svc.service_type ?? svc.type ?? 'responder',
-          progress: 100, done: true, reason: msg.reasoning ?? 'Agent dispatched.',
-          score: svc.scores?.total, distance: svc.distance,
-        })));
         const types = [...new Set(dispatched.map(s => s.service_type ?? s.type))].filter(Boolean);
+        const requiresConfirmation = Boolean(
+          msg.confirmation_required
+          || msg.confirmation_status === 'pending'
+          || msg.status === 'pending_confirmation'
+        );
+
+        setDispatchProgress(dispatched.map(svc => ({
+          name: svc.name ?? 'Unit',
+          type: svc.service_type ?? svc.type ?? 'responder',
+          progress: requiresConfirmation ? 0 : 100,
+          done: !requiresConfirmation,
+          reason: msg.reasoning ?? 'Agent dispatched.',
+          score: svc.scores?.total,
+          distance: svc.distance,
+        })));
+
+        if (requiresConfirmation) {
+          setIsProcessing(false);
+          setActiveNode('decide_dispatch');
+          setSystemStatus(STATUS.CONFIRMING);
+          setConfirmationData({
+            sensorData,
+            services: dispatched,
+            targetType: dispatched[0]?.type ?? types[0] ?? 'responder',
+            types,
+            bestService: dispatched[0],
+            serviceReasons,
+            reasoning: msg.reasoning ?? '',
+            countdownSeconds: dispatched.length >= 3 ? 10 : 8,
+          });
+          setConfirmationVisible(true);
+          addEntry('CONFIRM', `⏳ Human approval required before dispatching ${dispatched.map(svc => svc.name).join(', ')}.`);
+          addCOTStep(
+            'confirm',
+            'High-severity dispatch requires operator confirmation before field units and venue alerts are activated.',
+            [
+              `Selected units: ${dispatched.map(svc => svc.name).join(', ')}`,
+              `Decision status: ${msg.status ?? msg.confirmation_status ?? 'pending_confirmation'}`,
+            ]
+          );
+          onCrisisUpdateRef.current?.({
+            active: true,
+            type: sensorData?.type ?? null,
+            sensorData,
+            services: dispatched,
+            bestService: dispatched[0],
+            serviceReasons,
+            respondersActive: false,
+            awaitingConfirmation: true,
+            types,
+          });
+          break;
+        }
+
+        setSystemStatus(STATUS.DISPATCHING);
         addEntry('DECISION', `🚨 Dispatching ${dispatched.map(svc => svc.name).join(', ')}.`);
-        onCrisisUpdate?.({
+        onCrisisUpdateRef.current?.({
           active: true, types: types.length > 0 ? types : ['hospital'],
           alertedNodes: dispatched.map(s => String(s.id)),
           sensorData,
@@ -354,6 +460,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
         addEntry('ANALYSIS', `✔ [${(msg.node ?? '').toUpperCase().replace(/_/g, ' ')}] ${msg.summary ?? ''}`);
         break;
       case 'resolved':
+        if (confirmationVisibleRef.current) break;
         setSystemStatus(STATUS.RESOLVED);
         setThreatLevel(15);
         setIsProcessing(false);
@@ -365,8 +472,23 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
           setThreatLevel(0); setThreatTier('GREEN');
           setDispatchProgress([]); setEvacuationZone(null); setAlertMessage(null);
           setServiceScores([]); setCascadeRisk(0); setSmsResults([]); setChainOfThought([]);
-          onCrisisUpdate?.({ active: false, type: null });
+          onCrisisUpdateRef.current?.({ active: false, type: null });
         }, 10000);
+        break;
+      case 'awaiting_confirmation':
+        setIsProcessing(false);
+        setSystemStatus(STATUS.CONFIRMING);
+        setActiveNode('decide_dispatch');
+        addEntry('CONFIRM', msg.message ?? 'Awaiting human confirmation.');
+        break;
+      case 'confirmation_rejected':
+        setConfirmationVisible(false);
+        setConfirmationData(null);
+        setIsProcessing(false);
+        setSystemStatus(STATUS.NOMINAL);
+        setActiveNode(null);
+        setDispatchProgress([]);
+        addEntry('CONFIRM', msg.message ?? 'Dispatch rejected by operator.');
         break;
       case 'error':
         addEntry('SYSTEM', `⚠️ Agent error: ${msg.message}`);

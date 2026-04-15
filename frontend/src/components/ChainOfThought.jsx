@@ -100,6 +100,10 @@ export default function ChainOfThought({ steps = [], activeNode = null, isProces
         ref={scrollRef}
         className="map-cot-panel"
         onScroll={handleScroll}
+        onMouseDownCapture={(e) => e.stopPropagation()}
+        onPointerDownCapture={(e) => e.stopPropagation()}
+        onTouchStartCapture={(e) => e.stopPropagation()}
+        onTouchMoveCapture={(e) => e.stopPropagation()}
         onWheelCapture={(e) => e.stopPropagation()}
         style={{
         flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
@@ -107,6 +111,7 @@ export default function ChainOfThought({ steps = [], activeNode = null, isProces
         scrollBehavior: 'smooth',
         overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y',
       }}>
         <AnimatePresence initial={false}>
           {steps.map((step, i) => {

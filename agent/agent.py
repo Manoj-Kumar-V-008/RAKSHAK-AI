@@ -17,6 +17,9 @@ def _should_alert(state: CrisisState) -> str:
     Conditional edge after decide_dispatch.
     Alert if severity >= 6 OR threat level in ORANGE/RED/CRITICAL.
     """
+    if state.get("confirmation_required") and state.get("confirmation_status") == "pending":
+        return "end"
+
     severity    = state.get("severity", 0)
     threat_level = state.get("threat_level", "GREEN")
     if severity >= 6 or threat_level in ("ORANGE", "RED", "CRITICAL"):
