@@ -43,12 +43,20 @@ function TypewriterText({ text, speed = 18, onDone }) {
 export default function ChainOfThought({ steps = [], activeNode = null, isProcessing = false }) {
   const scrollRef = useRef(null);
   const [expandedIdx, setExpandedIdx] = useState(null);
+  const [stickToBottom, setStickToBottom] = useState(true);
+
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const el = scrollRef.current;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 28;
+    setStickToBottom(nearBottom);
+  };
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && stickToBottom) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [steps.length]);
+  }, [steps.length, stickToBottom]);
 
   if (steps.length === 0 && !isProcessing) {
     return (
@@ -68,7 +76,7 @@ export default function ChainOfThought({ steps = [], activeNode = null, isProces
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0, overflow: 'hidden', pointerEvents: 'auto' }}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -88,10 +96,17 @@ export default function ChainOfThought({ steps = [], activeNode = null, isProces
       </div>
 
       {/* Steps */}
-      <div ref={scrollRef} style={{
-        flex: 1, overflowY: 'auto', overflowX: 'hidden',
+      <div
+        ref={scrollRef}
+        className="map-cot-panel"
+        onScroll={handleScroll}
+        onWheelCapture={(e) => e.stopPropagation()}
+        style={{
+        flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
         padding: '8px 10px',
         scrollBehavior: 'smooth',
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch',
       }}>
         <AnimatePresence initial={false}>
           {steps.map((step, i) => {
@@ -217,6 +232,32 @@ export default function ChainOfThought({ steps = [], activeNode = null, isProces
               {NODE_COLORS[activeNode]?.label || 'PROCESSING'}...
             </span>
           </motion.div>
+        )}
+
+        {!stickToBottom && steps.length > 4 && (
+          <div style={{ position: 'sticky', bottom: 0, display: 'flex', justifyContent: 'center', padding: '8px 0 2px' }}>
+            <button
+              onClick={() => {
+                if (scrollRef.current) {
+                  scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                }
+                setStickToBottom(true);
+              }}
+              style={{
+                border: '1px solid rgba(0,242,255,0.12)',
+                background: 'rgba(3,5,8,0.92)',
+                color: '#00F2FF',
+                borderRadius: 999,
+                padding: '5px 10px',
+                fontFamily: mono,
+                fontSize: 8,
+                letterSpacing: 1,
+                cursor: 'pointer',
+              }}
+            >
+              JUMP TO LATEST
+            </button>
+          </div>
         )}
       </div>
     </div>

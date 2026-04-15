@@ -38,6 +38,29 @@ export const CATEGORIES = {
 const PYTHON_WS_URL = import.meta.env.VITE_PYTHON_AGENT_WS_URL || 'ws://localhost:8000';
 const NODE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://rakshak-backend-wbuz.onrender.com';
 
+function normalizeResponderService(service) {
+  if (!service) return null;
+
+  const type = service.service_type ?? service.type ?? 'responder';
+  const lat = Number(service.lat ?? service.latitude);
+  const lngValue = service.lng ?? service.lon ?? service.longitude;
+  const lng = Number(lngValue);
+  const distanceRaw = service.distance ?? service.distance_km ?? null;
+  const distance = distanceRaw == null ? null : Number(distanceRaw);
+
+  return {
+    ...service,
+    id: String(service.id ?? `${type}-${service.name ?? Date.now()}`),
+    type,
+    service_type: type,
+    lat: Number.isFinite(lat) ? lat : null,
+    lng: Number.isFinite(lng) ? lng : null,
+    lon: Number.isFinite(lng) ? lng : null,
+    distance: Number.isFinite(distance) ? distance : null,
+    distance_km: Number.isFinite(distance) ? distance : null,
+  };
+}
+
 
 
 export default function useAutonomousAgent({ hospitalityType, services, mapCenter, onCrisisUpdate }) {
@@ -70,6 +93,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
 
   const pythonWsRef = useRef(null);
   const sessionIdRef = useRef(null);
+  const latestSensorDataRef = useRef(null);
 
   // Persist contacts
   useEffect(() => {
@@ -272,18 +296,44 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
         break;
       }
       case 'decision': {
-        const dispatched = msg.dispatched_services || [msg.best_service || {}];
+        const rawDispatched = Array.isArray(msg.dispatched_services) && msg.dispatched_services.length > 0
+          ? msg.dispatched_services
+          : (msg.best_service ? [msg.best_service] : []);
+        const dispatched = rawDispatched
+          .map(normalizeResponderService)
+          .filter(Boolean);
+
+        if (dispatched.length === 0) {
+          addEntry('SYSTEM', '⚠️ Dispatch decision arrived without valid responder data.');
+          break;
+        }
+
+        const sensorData = latestSensorDataRef.current;
+        const serviceReasons = Object.fromEntries(
+          dispatched.map((svc) => [
+            svc.type,
+            svc.distance != null
+              ? `${svc.name} selected as the nearest high-scoring ${svc.type.replace('_', ' ')} unit at ${svc.distance.toFixed(1)} km.`
+              : `${svc.name} selected as the best available ${svc.type.replace('_', ' ')} unit.`,
+          ])
+        );
+
         setSystemStatus(STATUS.DISPATCHING);
         setDispatchProgress(dispatched.map(svc => ({
           name: svc.name ?? 'Unit', type: svc.service_type ?? svc.type ?? 'responder',
           progress: 100, done: true, reason: msg.reasoning ?? 'Agent dispatched.',
-          score: svc.scores?.total, distance: svc.distance_km,
+          score: svc.scores?.total, distance: svc.distance,
         })));
         const types = [...new Set(dispatched.map(s => s.service_type ?? s.type))].filter(Boolean);
+        addEntry('DECISION', `🚨 Dispatching ${dispatched.map(svc => svc.name).join(', ')}.`);
         onCrisisUpdate?.({
           active: true, types: types.length > 0 ? types : ['hospital'],
-          alertedNodes: dispatched.map(s => String(s.id)), sensorData: null,
-          services: dispatched, respondersActive: true, bestService: dispatched[0],
+          alertedNodes: dispatched.map(s => String(s.id)),
+          sensorData,
+          services: dispatched,
+          respondersActive: true,
+          bestService: dispatched[0],
+          serviceReasons,
         });
         playDispatchConfirm();
         break;
@@ -383,6 +433,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     setSystemStatus(STATUS.ANALYZING);
     setThreatLevel(40);
     setIsProcessing(true);
+    latestSensorDataRef.current = sensorData;
     onCrisisUpdate?.({ active: true, type: sensorData?.type ?? null, analyzing: true, sensorData });
 
     playWarningTone();

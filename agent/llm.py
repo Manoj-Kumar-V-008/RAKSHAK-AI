@@ -7,6 +7,23 @@ class AgentLLMError(RuntimeError):
     """Raised when the configured LLM cannot be used."""
 
 
+def _normalize_error_message(exc: Exception) -> str:
+    raw = str(exc).strip()
+    upper = raw.upper()
+
+    if "RESOURCE_EXHAUSTED" in upper or "429" in upper:
+        return "Gemini quota exhausted (429). Local autonomous fallback engaged."
+    if "PERMISSION_DENIED" in upper or "403" in upper:
+        return "Gemini access was denied. Check API key permissions; local fallback engaged."
+    if "UNAUTHENTICATED" in upper or "401" in upper:
+        return "Gemini authentication failed. Check the API key; local fallback engaged."
+    if "DEADLINE_EXCEEDED" in upper or "TIMEOUT" in upper:
+        return "Gemini request timed out. Local autonomous fallback engaged."
+
+    first_line = raw.splitlines()[0] if raw else "Unknown LLM error."
+    return first_line[:220]
+
+
 def _extract_text(content: Any) -> str:
     if isinstance(content, str):
         return content.strip()
@@ -95,10 +112,7 @@ def generate_text(prompt: str, *, task_name: str) -> str:
         response = model_config["llm"].invoke(prompt)
         text = _extract_text(getattr(response, "content", response))
     except Exception as exc:
-        raise AgentLLMError(
-            f"{model_config['provider']}:{model_config['model']} request failed during "
-            f"{task_name}: {exc}"
-        ) from exc
+        raise AgentLLMError(_normalize_error_message(exc)) from exc
 
     if not text:
         raise AgentLLMError(

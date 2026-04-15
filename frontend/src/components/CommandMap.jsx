@@ -87,6 +87,41 @@ function buildFallbackServices(lat, lng) {
   })).sort((a, b) => a.distance - b.distance);
 }
 
+function normalizeMapService(service, destLat, destLng) {
+  if (!service) return null;
+
+  const type = service.type || service.service_type;
+  const serviceMeta = SERVICE_TYPES[type] || {};
+  const lat = Number(service.lat ?? service.latitude);
+  const lngRaw = service.lng ?? service.lon ?? service.longitude;
+  const lng = Number(lngRaw);
+  const directDistance = service.distance ?? service.distance_km ?? null;
+  const computedDistance = (
+    Number.isFinite(lat)
+    && Number.isFinite(lng)
+    && Number.isFinite(destLat)
+    && Number.isFinite(destLng)
+  )
+    ? haversine(lat, lng, destLat, destLng)
+    : null;
+  const numericDistance = directDistance == null ? computedDistance : Number(directDistance);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return {
+    ...serviceMeta,
+    ...service,
+    id: String(service.id ?? `${type}-${service.name ?? 'unit'}`),
+    type,
+    service_type: type,
+    lat,
+    lng,
+    lon: lng,
+    distance: Number.isFinite(numericDistance) ? numericDistance : null,
+    distance_km: Number.isFinite(numericDistance) ? numericDistance : null,
+  };
+}
+
 // Overpass API endpoints to try (primary + mirrors)
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
@@ -267,9 +302,10 @@ export default function CommandMap({ hospitalityType, userEmail }) {
   // ═══ Service status ═══
   const svcStatuses = useMemo(() => {
     const map = {};
+    const alertedIds = new Set((crisisInfo?.alertedNodes || []).map(id => String(id)));
     services.forEach(svc => {
       const h = svc.id % 100;
-      if (crisisInfo?.active && crisisInfo.alertedNodes?.includes(svc.id)) {
+      if (crisisInfo?.active && alertedIds.has(String(svc.id))) {
         map[svc.id] = { label: 'Dispatched', color: '#EF4444' };
       } else if (h < 3) {
         map[svc.id] = { label: 'Critical', color: '#EF4444' };
@@ -307,12 +343,15 @@ export default function CommandMap({ hospitalityType, userEmail }) {
 
     // Merge servicesList and crisis.services
     const allServicesMap = new Map();
-    servicesList.forEach(s => allServicesMap.set(String(s.id), s));
+    servicesList
+      .map(s => normalizeMapService(s, destLat, destLng))
+      .filter(Boolean)
+      .forEach(s => allServicesMap.set(String(s.id), s));
     if (crisis?.services && Array.isArray(crisis.services)) {
-      crisis.services.forEach(s => {
-         if (s.lat && s.lon) s.lng = s.lon; // Normalize lon -> lng for leaflet
-         allServicesMap.set(String(s.id), { ...SERVICE_TYPES[s.type || s.service_type], ...s });
-      });
+      crisis.services
+        .map(s => normalizeMapService(s, destLat, destLng))
+        .filter(Boolean)
+        .forEach(s => allServicesMap.set(String(s.id), s));
     }
     const mergedServices = Array.from(allServicesMap.values());
 
@@ -330,14 +369,14 @@ export default function CommandMap({ hospitalityType, userEmail }) {
           ${svc.phone ? `<div style="color:#8892A8;font-size:10px;margin-top:2px;">📞 ${svc.phone}</div>` : ''}
           <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
             <span style="color:#8892A8;font-size:9px;">DISTANCE </span>
-            <span style="color:${svc.color};font-size:11px;font-weight:700;">${svc.distance.toFixed(2)} km</span>
+            <span style="color:${svc.color};font-size:11px;font-weight:700;">${svc.distance != null ? `${svc.distance.toFixed(2)} km` : 'Computing route...'}</span>
           </div>
         </div>`,
         { className: 'leaflet-popup-dark', closeButton: false, offset: [0, -4] }
       );
       marker.addTo(markersLayerRef.current);
 
-      if (isAlerted) {
+      if (isAlerted && Number.isFinite(svc.lat) && Number.isFinite(svc.lng)) {
         const fallbackLine = L.polyline([[svc.lat, svc.lng], [destLat, destLng]], {
           className: 'route-line-animated', color: svc.color, weight: 3, opacity: 0.6, dashArray: '4 8'
         }).addTo(routesLayerRef.current);
@@ -773,8 +812,10 @@ export default function CommandMap({ hospitalityType, userEmail }) {
                 background: 'rgba(3,5,8,0.95)', border: '1px solid rgba(0,242,255,0.08)',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
                 backdropFilter: 'blur(20px)',
-                display: 'flex', flexDirection: 'column'
+                display: 'flex', flexDirection: 'column',
+                pointerEvents: 'auto',
               }}
+              className="map-cot-panel"
             >
               <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
                 <ChainOfThought

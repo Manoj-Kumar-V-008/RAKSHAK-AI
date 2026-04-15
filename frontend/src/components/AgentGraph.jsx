@@ -38,7 +38,7 @@ const FALLBACK_STATIONS = {
 // Resolve a station's display details — prefer live crisisInfo data, fall back to static table
 function resolveStation(type, crisisServices, crisisReasons) {
   const liveObj = Array.isArray(crisisServices)
-    ? crisisServices.find(s => s && s.type === type)
+    ? crisisServices.find(s => s && (s.type === type || s.service_type === type))
     : null;
 
   const fallback = FALLBACK_STATIONS[type] || {};
@@ -46,7 +46,9 @@ function resolveStation(type, crisisServices, crisisReasons) {
   return {
     name:     liveObj?.name     || fallback.name     || type.replace('_', ' ').toUpperCase(),
     phone:    liveObj?.phone    || fallback.phone     || null,
-    distance: liveObj?.distance != null ? liveObj.distance : (fallback.distance ?? null),
+    distance: liveObj?.distance != null
+      ? liveObj.distance
+      : (liveObj?.distance_km != null ? liveObj.distance_km : (fallback.distance ?? null)),
     reason:   crisisReasons?.[type] || 'Nearest available unit selected by AI agent.',
   };
 }
