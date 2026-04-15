@@ -58,6 +58,20 @@ def score_services(state: CrisisState) -> dict:
         "factors": [f"Threat: {threat_score}/100", f"Level: {threat_level}", f"Cascade: {cascade_risk*100:.1f}%"],
     })
 
+    log = {
+        "node": "score_services",
+        "summary": (
+            f"Top service: {scored[0].get('name', 'N/A') if scored else 'N/A'} | "
+            f"ThreatScore {threat_score}/100 ({threat_level})"
+        ),
+        "data": {
+            "top_service": scored[0].get("name") if scored else None,
+            "service_count": len(scored),
+            "threat_score": threat_score,
+            "threat_level": threat_level,
+        },
+    }
+
     return {
         "scored_services": scored,
         "threat_score": threat_score,
@@ -65,4 +79,5 @@ def score_services(state: CrisisState) -> dict:
         "cascade_risk": cascade_risk,
         "refined_threat_score": threat_score,
         "chain_of_thought": chain_of_thought,
+        "agent_log": state.get("agent_log", []) + [log],
     }

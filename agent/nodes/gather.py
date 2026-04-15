@@ -44,8 +44,18 @@ async def gather_intel(state: CrisisState) -> dict:
         "factors": [f"Services: {len(nearby)}", f"Traffic routes: {len(traffic_info)}", "Data ready for scoring"],
     })
 
+    log = {
+        "node": "gather_intel",
+        "summary": f"Located {len(nearby)} services and analyzed {len(traffic_info)} traffic routes.",
+        "data": {
+            "services_found": len(nearby),
+            "traffic_checked": len(traffic_info),
+        },
+    }
+
     return {
         "nearby_services": nearby,
         "traffic_info": traffic_info,
         "chain_of_thought": chain_of_thought,
+        "agent_log": state.get("agent_log", []) + [log],
     }

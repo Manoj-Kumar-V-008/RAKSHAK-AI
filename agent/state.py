@@ -9,11 +9,12 @@ class CrisisState(TypedDict, total=False):
     venue_lat: float
     venue_lon: float
     session_id: str
+    location_name: str
 
     # ── Detection ──
     crisis_type: str          # e.g. "smoke", "health", "security"
     severity: int             # 1-10
-    gemini_analysis: str      # raw Gemini response text
+    gemini_analysis: str      # raw model response text (legacy field name)
     chain_of_thought: list    # NEW: step-by-step reasoning from each node
 
     # ── Threat math ──
@@ -30,8 +31,10 @@ class CrisisState(TypedDict, total=False):
     refined_threat_score: float
 
     # ── Decision ──
+    best_service: dict | None
     dispatched_services: list # selected services to dispatch
-    dispatch_reasoning: str   # Gemini reasoning for dispatch decision
+    dispatch_reasoning: str   # reasoning for dispatch decision
+    dispatch_status: str
     rejected_services: list   # NEW: services rejected + reasons
 
     # ── Human-in-the-loop ──
@@ -44,3 +47,5 @@ class CrisisState(TypedDict, total=False):
     emergency_contacts: list  # NEW: [{name, phone}]
     sms_results: list         # NEW: SMS delivery results
     call_results: list        # NEW: voice call results
+    agent_log: list
+    is_resolved: bool

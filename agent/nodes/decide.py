@@ -1,17 +1,132 @@
-import os
-import json
-import google.generativeai as genai
+import re
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
-_model = genai.GenerativeModel("gemini-2.0-flash")
-
+from ..llm import AgentLLMError, generate_text
 from ..state import CrisisState
+from ..tools.scoring import TYPE_WEIGHTS
+
+
+def _required_types(crisis_type: str, severity: int) -> list[str]:
+    default_order = ["hospital", "fire_station", "police"]
+    weighted = TYPE_WEIGHTS.get(crisis_type, {})
+    ordered = [
+        service_type
+        for service_type, _score in sorted(
+            weighted.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+    ]
+
+    for service_type in default_order:
+        if service_type not in ordered:
+            ordered.append(service_type)
+
+    if severity >= 7:
+        return ["fire_station", "hospital", "police"]
+    if severity >= 4:
+        return ordered[:2]
+    return ordered[:1]
+
+
+def _fallback_decision(
+    scored: list[dict],
+    candidates: list[dict],
+    crisis_type: str,
+    severity: int,
+) -> dict:
+    required_types = _required_types(crisis_type, severity)
+    dispatched: list[dict] = []
+    selected_ids: set[str] = set()
+
+    for service_type in required_types:
+        choice = next((svc for svc in scored if svc.get("service_type") == service_type), None)
+        if choice and str(choice.get("id")) not in selected_ids:
+            dispatched.append(choice)
+            selected_ids.add(str(choice.get("id")))
+
+    if not dispatched and scored:
+        dispatched = [scored[0]]
+        selected_ids.add(str(scored[0].get("id")))
+
+    reasoning_steps = [
+        f"Mapped {crisis_type} severity {severity}/10 to required responder types: {', '.join(required_types)}.",
+        "Ranked candidates by composite service score and preferred the top unit for each required type.",
+        "Selected the closest high-scoring responders that satisfy the dispatch rule for this severity band.",
+    ]
+
+    selected_by_type = {svc.get("service_type"): svc for svc in dispatched}
+    rejected = []
+    for svc in candidates:
+        svc_id = str(svc.get("id"))
+        if svc_id in selected_ids:
+            continue
+
+        chosen = selected_by_type.get(svc.get("service_type"))
+        if svc.get("service_type") not in required_types:
+            reason = "Service type not required for the current severity band"
+        elif chosen:
+            reason = (
+                f"Lower score than selected {svc.get('service_type')} unit "
+                f"({chosen.get('name', 'selected unit')})"
+            )
+        else:
+            reason = "Higher-priority responders were selected first"
+
+        rejected.append({
+            "name": svc.get("name", "Unknown"),
+            "id": svc_id,
+            "reason": reason,
+        })
+
+    return {
+        "selected_tokens": selected_ids,
+        "steps": reasoning_steps,
+        "rejected": rejected,
+    }
+
+
+def _parse_decision_response(text: str, fallback: dict) -> dict:
+    selected_tokens = set(fallback["selected_tokens"])
+    steps: list[str] = []
+    rejected = list(fallback["rejected"])
+
+    parsed_rejected: list[dict] = []
+    for line in text.splitlines():
+        line_s = line.strip()
+        if not line_s:
+            continue
+
+        if line_s.startswith("SELECTED_IDS:"):
+            tokens = [
+                token.strip().lower()
+                for token in line_s.split(":", 1)[1].split(",")
+                if token.strip()
+            ]
+            if tokens:
+                selected_tokens = set(tokens)
+        elif re.match(r"^\d+\.\s+", line_s):
+            steps.append(line_s.split(".", 1)[1].strip())
+        elif "|" in line_s and not line_s.startswith("REJECTED"):
+            left, right = line_s.split("|", 1)
+            parsed_rejected.append({
+                "id": left.strip().lstrip("- ").lower(),
+                "reason": right.strip(),
+            })
+
+    if parsed_rejected:
+        rejected = parsed_rejected
+
+    return {
+        "selected_tokens": selected_tokens,
+        "steps": steps or fallback["steps"],
+        "rejected": rejected,
+    }
 
 
 def decide_dispatch(state: CrisisState) -> dict:
     """
-    Node 4 — DECIDE: Uses Gemini to select optimal units and provides
-    rejection reasoning for non-selected alternatives.
+    Node 4 - DECIDE: select the best responders and explain why alternatives
+    were rejected.
     """
     scored = state.get("scored_services", [])
     crisis_type = state.get("crisis_type", "unknown")
@@ -20,134 +135,174 @@ def decide_dispatch(state: CrisisState) -> dict:
     cascade_risk = state.get("cascade_risk", 0)
 
     if not scored:
+        log = {
+            "node": "decide_dispatch",
+            "summary": "No scored services were available for dispatch.",
+            "data": {"selected": [], "rejected": []},
+        }
         return {
+            "best_service": None,
             "dispatched_services": [],
             "dispatch_reasoning": "No scored services to evaluate.",
+            "dispatch_status": "blocked",
             "rejected_services": [],
+            "agent_log": state.get("agent_log", []) + [log],
         }
 
-    # Top candidates per type
-    top_by_type = {}
-    for s in scored:
-        t = s.get("service_type", "unknown")
-        if t not in top_by_type:
-            top_by_type[t] = []
-        top_by_type[t].append(s)
+    top_by_type: dict[str, list[dict]] = {}
+    for service in scored:
+        service_type = service.get("service_type", "unknown")
+        top_by_type.setdefault(service_type, []).append(service)
 
-    # Flatten top-3 per type
-    candidates = []
-    for t, svcs in top_by_type.items():
-        candidates.extend(svcs[:3])
+    candidates: list[dict] = []
+    for services in top_by_type.values():
+        candidates.extend(services[:3])
 
     summary_lines = []
-    for s in candidates:
-        sc = s.get("scores", {})
+    for service in candidates:
+        scores = service.get("scores", {})
         summary_lines.append(
-            f"  - {s.get('name', '?')} ({s.get('service_type', '?')}) | "
-            f"Dist: {s.get('distance_km', '?')}km | Score: {sc.get('total', '?')} | "
-            f"Phone: {s.get('phone', 'N/A')}"
+            f"- ID: {service.get('id')} | Name: {service.get('name', '?')} | "
+            f"Type: {service.get('service_type', '?')} | Dist: {service.get('distance_km', '?')}km | "
+            f"Score: {scores.get('total', '?')} | Phone: {service.get('phone', 'N/A')}"
         )
 
+    fallback = _fallback_decision(scored, candidates, crisis_type, severity)
     prompt = f"""You are RAKSHAK AI dispatch commander.
 
-CRISIS: {crisis_type.upper()} | Severity: {severity}/10 | ThreatScore: {threat_score}/100 | CascadeRisk: {(cascade_risk*100):.0f}%
+CRISIS: {crisis_type.upper()} | Severity: {severity}/10 | ThreatScore: {threat_score}/100 | CascadeRisk: {(cascade_risk * 100):.0f}%
 
-AVAILABLE SERVICES (scored):
+AVAILABLE SERVICES:
 {chr(10).join(summary_lines)}
 
 RULES:
-- For severity >= 7: MUST dispatch all 3 service types (fire, hospital, police)
-- For severity 4-6: dispatch at least 2 relevant types
-- For severity <= 3: dispatch 1 primary type
-- Select the highest-scored service of each required type
+- For severity >= 7: dispatch all 3 service types (fire_station, hospital, police)
+- For severity 4-6: dispatch at least 2 relevant service types
+- For severity <= 3: dispatch 1 primary service type
+- Prefer the highest-scoring unit of each required type
 
 RESPOND IN THIS EXACT FORMAT:
-SELECTED: <comma-separated names of selected services>
+SELECTED_IDS: <comma-separated service ids>
 REASONING_STEPS:
 1. <step 1: analyze the crisis needs>
 2. <step 2: evaluate the top candidates>
 3. <step 3: finalize the decision>
-REJECTED: <for each non-selected service, one line: name | reason for rejection>
+REJECTED:
+<service id> | <reason>
 """
 
     try:
-        resp = _model.generate_content(prompt)
-        text = resp.text.strip()
-    except Exception as e:
-        text = f"SELECTED: {candidates[0].get('name', 'Unknown') if candidates else 'None'}\nREASONING_STEPS:\n1. Fallback selection due to Gemini error ({e})\nREJECTED:"
+        parsed = _parse_decision_response(
+            generate_text(prompt, task_name="decide_dispatch"),
+            fallback,
+        )
+    except AgentLLMError as exc:
+        parsed = {
+            **fallback,
+            "steps": fallback["steps"] + [f"AI model fallback engaged because: {exc}"],
+        }
 
-    # Parse response
-    selected_names = set()
-    cot_steps = []
-    rejected_list = []
+    selected_tokens = {token.lower() for token in parsed["selected_tokens"]}
+    dispatched: list[dict] = []
+    seen_types: set[str] = set()
 
-    for line in text.split("\n"):
-        line_s = line.strip()
-        if line_s.startswith("SELECTED:"):
-            names = line_s.split(":", 1)[1].strip()
-            selected_names = {n.strip().lower() for n in names.split(",")}
-        elif line_s and line_s[0].isdigit() and "." in line_s[:3]:
-            step_text = line_s.split(".", 1)[1].strip() if "." in line_s else line_s
-            cot_steps.append(step_text)
-        elif "|" in line_s and not line_s.startswith("SELECTED") and not line_s.startswith("REASONING"):
-            parts = line_s.split("|", 1)
-            rejected_list.append({
-                "name": parts[0].strip().lstrip("- "),
-                "reason": parts[1].strip() if len(parts) > 1 else "Not selected",
-            })
+    for service in candidates:
+        service_id = str(service.get("id", "")).lower()
+        service_name = str(service.get("name", "")).lower()
+        service_type = service.get("service_type")
+        if (
+            (service_id in selected_tokens or service_name in selected_tokens)
+            and service_type not in seen_types
+        ):
+            dispatched.append(service)
+            seen_types.add(service_type)
 
-    # Match selected names to actual service objects
-    dispatched = []
-    seen_types = set()
-
-    # First: exact matches
-    for s in candidates:
-        if s.get("name", "").lower() in selected_names and s.get("service_type") not in seen_types:
-            dispatched.append(s)
-            seen_types.add(s.get("service_type"))
-
-    # Fallback: ensure at least one per required type for high severity
     if severity >= 7:
-        for needed_type in ["fire_station", "hospital", "police"]:
-            if needed_type not in seen_types:
-                for s in scored:
-                    if s.get("service_type") == needed_type:
-                        dispatched.append(s)
-                        seen_types.add(needed_type)
-                        break
+        for required_type in ["fire_station", "hospital", "police"]:
+            if required_type in seen_types:
+                continue
+            fallback_choice = next(
+                (service for service in scored if service.get("service_type") == required_type),
+                None,
+            )
+            if fallback_choice:
+                dispatched.append(fallback_choice)
+                seen_types.add(required_type)
 
-    # If still empty, take top candidate
-    if not dispatched and candidates:
-        dispatched = [candidates[0]]
+    if not dispatched:
+        for service in scored:
+            service_id = str(service.get("id", "")).lower()
+            if service_id in selected_tokens:
+                dispatched.append(service)
+                break
 
-    # Build chain-of-thought
+    if not dispatched:
+        dispatched = [scored[0]]
+
+    best_service = dispatched[0] if dispatched else None
+    rejected_list = parsed["rejected"]
+    confirmation_required = severity >= 6
+    status = "pending_confirmation" if confirmation_required else "auto_approved"
+
     chain_of_thought = state.get("chain_of_thought", [])
-    for step in cot_steps:
+    for step in parsed["steps"]:
         chain_of_thought.append({
             "node": "decide_dispatch",
-            "text": step
+            "text": step,
         })
-    
+
     chain_of_thought.append({
         "node": "decide_dispatch",
-        "text": f"FINAL DECISION MADE: Dispatch instructions locked.",
-        "factors": [f"Selected: {', '.join(s.get('name', '?') for s in dispatched)}"],
+        "text": "Final dispatch decision locked.",
+        "factors": [
+            f"Selected: {', '.join(service.get('name', '?') for service in dispatched)}",
+            f"Confirmation required: {confirmation_required}",
+        ],
     })
+
     if rejected_list:
         chain_of_thought.append({
             "node": "decide_dispatch",
-            "text": f"Rejected {len(rejected_list)} alternatives: " + "; ".join(f"{r['name']} ({r['reason']})" for r in rejected_list[:3]),
-            "factors": [f"{r['name']}: {r['reason']}" for r in rejected_list[:5]],
+            "text": (
+                f"Rejected {len(rejected_list)} alternatives: "
+                + "; ".join(
+                    f"{item.get('name', item.get('id', 'unknown'))} ({item.get('reason', 'Not selected')})"
+                    for item in rejected_list[:3]
+                )
+            ),
+            "factors": [
+                f"{item.get('name', item.get('id', 'unknown'))}: {item.get('reason', 'Not selected')}"
+                for item in rejected_list[:5]
+            ],
         })
 
-    # Determine if confirmation is required (high severity = always)
-    confirmation_required = severity >= 6
+    log = {
+        "node": "decide_dispatch",
+        "summary": (
+            "Dispatch selected: "
+            + ", ".join(service.get("name", "Unknown") for service in dispatched)
+        ),
+        "data": {
+            "selected": [
+                {
+                    "id": service.get("id"),
+                    "name": service.get("name"),
+                    "type": service.get("service_type"),
+                }
+                for service in dispatched
+            ],
+            "rejected": rejected_list[:10],
+        },
+    }
 
     return {
+        "best_service": best_service,
         "dispatched_services": dispatched,
-        "dispatch_reasoning": " ".join(cot_steps),
+        "dispatch_reasoning": " ".join(parsed["steps"]),
+        "dispatch_status": status,
         "rejected_services": rejected_list,
         "chain_of_thought": chain_of_thought,
         "confirmation_required": confirmation_required,
         "confirmation_status": "pending" if confirmation_required else "auto_approved",
+        "agent_log": state.get("agent_log", []) + [log],
     }

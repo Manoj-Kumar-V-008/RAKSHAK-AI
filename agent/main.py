@@ -7,10 +7,10 @@ GET  /api/history        →  recent crisis history
 """
 import asyncio
 import json
-import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -18,7 +18,14 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-load_dotenv()
+AGENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = AGENT_DIR.parent
+
+# Load repo-level env first, then the agent-local env where model keys usually live.
+load_dotenv(PROJECT_ROOT / ".env", override=False)
+load_dotenv(AGENT_DIR / ".env", override=False)
+
+from .llm import get_ai_status
 
 from .agent import crisis_graph  # noqa: E402 — must be after load_dotenv
 
@@ -86,13 +93,21 @@ async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_
         "threat_level":     "GREEN",
         "cascade_risk":     0.0,
         "nearby_services":  [],
-        "traffic_data":     {},
+        "traffic_info":     {},
         "scored_services":  [],
+        "dispatched_services": [],
+        "rejected_services": [],
         "best_service":     None,
         "dispatch_reasoning": "",
         "dispatch_status":  "pending",
+        "confirmation_required": False,
+        "confirmation_status": "auto_approved",
         "evacuation_zones": [],
         "alert_message":    "",
+        "emergency_contacts": [],
+        "sms_results":      [],
+        "call_results":     [],
+        "chain_of_thought": [],
         "agent_log":        [],
         "is_resolved":      False,
     }
@@ -216,7 +231,12 @@ async def root():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "OK", "active_sessions": len(active_ws), "timestamp": _now()}
+    return {
+        "status": "OK",
+        "active_sessions": len(active_ws),
+        "timestamp": _now(),
+        "ai": get_ai_status(),
+    }
 
 
 @app.post("/api/agent/process")
