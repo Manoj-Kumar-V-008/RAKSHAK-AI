@@ -1,14 +1,10 @@
-# Render Blueprint — Rakshak AI Backend
-# This defines the two web services needed for the backend.
-# Deploy from the Render dashboard: New > Blueprint > connect your repo.
-
 services:
-  # Public web app + Node relay
   - type: web
     name: rakshak-backend
     runtime: node
-    buildCommand: npm install --prefix backend-node && npm install --prefix frontend && npm run build --prefix frontend
-    startCommand: node backend-node/server.js
+    rootDir: backend/backend-node
+    buildCommand: npm install
+    startCommand: node server.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -16,13 +12,12 @@ services:
         fromService:
           name: rakshak-agent
           type: web
-          property: hostport
+          property: host
 
-  # Python Agent
   - type: web
     name: rakshak-agent
     runtime: python
-    rootDir: backend-python
+    rootDir: backend/backend-python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
