@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { playWarningTone, playCriticalSiren, playDispatchConfirm, playSMSSent, playResolved, setMuted as setAudioEngineMuted, getMuted } from '../components/AudioEngine';
+import { buildBackendUrl, getSocketTarget } from '../config/backend';
 
 // ─── Status & Category enums ─────────────────────────────────────────────────
 export const STATUS = {
@@ -34,9 +35,6 @@ export const CATEGORIES = {
   SMS:       { label: 'SMS',       color: '#06B6D4' },
   CONFIRM:   { label: 'CONFIRM',   color: '#EAB308' },
 };
-
-const PYTHON_WS_URL = import.meta.env.VITE_PYTHON_AGENT_WS_URL || 'ws://localhost:8000';
-const NODE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://rakshak-backend-wbuz.onrender.com';
 
 function normalizeResponderService(service) {
   if (!service) return null;
@@ -91,7 +89,8 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
   const [smsResults, setSmsResults] = useState([]);
   const [audioMuted, setAudioMuted] = useState(() => getMuted());
 
-  const pythonWsRef = useRef(null);
+  // ── Refs ────────────────────────────────────────────────────────────────────
+  const socketRef = useRef(null);
   const sessionIdRef = useRef(null);
   const latestSensorDataRef = useRef(null);
   const onCrisisUpdateRef = useRef(onCrisisUpdate);
@@ -151,16 +150,14 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     setChainOfThought(prev => [...prev, { node, text, factors, score, time }]);
   }, []);
 
+  // ── Send dispatch confirmation via Socket.IO → Node → Python ───────────────
   const sendDispatchConfirmation = useCallback((approved) => {
-    const ws = pythonWsRef.current;
-    const sessionId = sessionIdRef.current;
-
-    if (!ws || ws.readyState !== WebSocket.OPEN || !sessionId) {
+    const socket = socketRef.current;
+    if (!socket || !socket.connected) {
       return false;
     }
-
     try {
-      ws.send(JSON.stringify({ type: 'dispatch_confirmation', approved }));
+      socket.emit('dispatch_confirmation', { approved });
       return true;
     } catch (_) {
       return false;
@@ -180,7 +177,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
       const message = `🚨 RAKSHAK AI ALERT\n\nCrisis: ${crisisType.toUpperCase()}\nLocation: ${location}\nSeverity: ${severity}/10\nTime: ${new Date().toLocaleTimeString('en-IN')}\n\nEmergency services have been dispatched. Please follow evacuation protocols.\n\n— Rakshak AI Command Center`;
 
       try {
-        const res = await fetch(`${NODE_BACKEND_URL}/api/sms`, {
+        const res = await fetch(buildBackendUrl('/api/sms'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ to: contact.phone, message, contactName: contact.name }),
@@ -260,9 +257,8 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
 
       if (liveAgentResumed) {
         setConfirmationData(null);
-        addComms('Approval sent to Python LangGraph agent. Awaiting live alert node output.');
+        addComms('✅ Approval sent to Python LangGraph agent via Node relay. Awaiting live alert node output.');
         return;
-        addComms('âœ… Approval sent to Python LangGraph agent. Awaiting live alert node output.');
       } else {
       // Evacuation
       if (sensorData?.location) {
@@ -322,7 +318,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     }, 5000);
   }, [addEntry, addCOTStep, onCrisisUpdate, sendDispatchConfirmation]);
 
-  // ── Python LangGraph WebSocket handler ─────────────────────────────────────
+  // ── Handle messages from Python agent (relayed through Node) ───────────────
   function handlePythonMessage(msg) {
     switch (msg.type) {
       case 'connected':
@@ -497,54 +493,54 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     }
   }
 
-  // ── WebSocket connection (with exponential backoff) ─────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Socket.IO connection to NODE BACKEND (the ONLY connection we need)
+  //  Node backend proxies to Python agent via WebSocket internally
+  // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    const sid = `ui-${Date.now()}`;
-    sessionIdRef.current = sid;
-    let ws, reconnectTimer, retryCount = 0;
-    const MAX_RETRIES = 10;
-    let isMounted = true;
-
-    function connect() {
-      if (!isMounted || retryCount >= MAX_RETRIES) return;
-      try {
-        ws = new WebSocket(`${PYTHON_WS_URL}/ws/${sid}`);
-        pythonWsRef.current = ws;
-        ws.onopen = () => {
-          retryCount = 0; // Reset on successful connection
-          addComms('🔗 Python LangGraph agent WebSocket connected.');
-        };
-        ws.onmessage = (ev) => { try { handlePythonMessage(JSON.parse(ev.data)); } catch (_) {} };
-        ws.onclose = () => {
-          if (!isMounted) return;
-          retryCount++;
-          const delay = Math.min(4000 * Math.pow(1.5, retryCount - 1), 60000);
-          reconnectTimer = setTimeout(connect, delay);
-        };
-        ws.onerror = () => {}; // Suppress — onclose handles reconnect
-      } catch (_) {}
-    }
-    connect();
-
-    const socket = io(NODE_BACKEND_URL, {
+    const socket = io(getSocketTarget(), {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5,
-      reconnectionDelay: 3000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
       reconnectionDelayMax: 15000,
     });
-    socket.on('connect', () => addComms('📡 Node.js relay uplink active.'));
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      addComms('📡 Connected to Rakshak Command Relay (Node backend).');
+      addComms('🔗 Agent pipeline ready: Frontend → Node → Python LangGraph → Gemini AI');
+    });
+
+    // ── All agent messages are relayed through Node from Python ──────────────
+    socket.on('agent_message', (msg) => {
+      handlePythonMessage(msg);
+    });
+
+    // ── Audit log entries from Node server ──────────────────────────────────
     socket.on('audit_log', (entry) => setActionLog((p) => [...p, entry].slice(-80)));
-    socket.on('disconnect', () => {});
+
+    // ── Sync initial state ──────────────────────────────────────────────────
+    socket.on('sync_state', (state) => {
+      if (state.logs) setActionLog(state.logs);
+    });
+
+    socket.on('disconnect', () => {
+      addComms('⚠️ Command Relay connection lost. Reconnecting...');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.warn('[Socket.IO] Connection error:', err.message);
+    });
 
     return () => {
-      isMounted = false;
-      clearTimeout(reconnectTimer);
-      ws?.close();
       socket.disconnect();
+      socketRef.current = null;
     };
   }, []);
 
   // ── processCrisis — THE main function ──────────────────────────────────────
+  // Sends crisis event to Node backend via Socket.IO
+  // Node backend opens WebSocket to Python agent and relays all messages back
   const processCrisis = useCallback(async (sensorData) => {
     // Reset state
     setChainOfThought([]);
@@ -559,19 +555,24 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     onCrisisUpdate?.({ active: true, type: sensorData?.type ?? null, analyzing: true, sensorData });
 
     playWarningTone();
-    addComms('📤 FORWARDING SENSOR PAYLOAD TO CRISIS PIPELINE...');
+    addComms('📤 FORWARDING SENSOR PAYLOAD TO NODE RELAY → PYTHON AGENT...');
     addEntry('DETECTION', `🔔 ANOMALY: ${(sensorData?.type ?? 'UNKNOWN').toUpperCase()} @ ${sensorData?.location ?? '?'} | Sensor: ${sensorData?.sensor_id ?? 'N/A'}`);
 
     const lat = mapCenter?.lat ?? 12.9716;
     const lng = mapCenter?.lng ?? mapCenter?.lon ?? 77.5946;
-    const ws = pythonWsRef.current;
 
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'crisis_event', data: sensorData, venue_lat: lat, venue_lon: lng }));
-      addComms('✅ CRISIS EVENT SENT TO LANGGRAPH NEURAL ENGINE.');
+    const socket = socketRef.current;
+    if (socket && socket.connected) {
+      // Send crisis event to Node backend — Node will proxy to Python agent
+      socket.emit('crisis_event', {
+        sensor_data: sensorData,
+        venue_lat: lat,
+        venue_lon: lng,
+      });
+      addComms('✅ CRISIS EVENT SENT TO NODE RELAY → LANGGRAPH NEURAL ENGINE.');
     } else {
-      addComms('❌ ERROR: LANGGRAPH BACKEND UNREACHABLE. PLEASE START PYTHON SERVER.');
-      addEntry('SYSTEM', '❌ Neural Engine disconnected. Simulation disabled.');
+      addComms('❌ ERROR: NODE BACKEND UNREACHABLE. Check your internet connection.');
+      addEntry('SYSTEM', '❌ Command Relay disconnected. Cannot reach agent pipeline.');
       setSystemStatus(STATUS.NOMINAL);
       setThreatLevel(0);
       setIsProcessing(false);

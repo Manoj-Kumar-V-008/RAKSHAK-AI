@@ -26,6 +26,9 @@ dist-ssr
 .env
 backend/.env
 backend/agent/.env
+backend-node/.env
+backend-python/.env
+backend-python/agent/.env
 
 # Python
 __pycache__/

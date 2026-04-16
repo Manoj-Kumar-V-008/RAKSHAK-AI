@@ -1,9 +1,13 @@
 {
   "name": "rakshak-ai-root",
   "version": "1.0.0",
-  "description": "Root orchestrator for Rakshak AI (Frontend, Backend, and LangGraph Agent)",
+  "description": "Root orchestrator for the Rakshak AI web app, Node relay, and Python LangGraph agent",
   "scripts": {
-    "start": "npx concurrently -n \"FRONTEND,BACKEND,AGENT\" -c \"cyan,green,magenta\" \"npm run dev --prefix frontend\" \"npm start --prefix backend\" \"python -m uvicorn agent.main:app --reload --port 8000\"",
-    "setup": "npm install --prefix frontend && npm install --prefix backend && pip install -r agent/requirements.txt"
+    "start": "node server.js",
+    "dev": "npx concurrently -n \"FRONTEND,NODE,AGENT\" -c \"cyan,green,magenta\" \"npm run dev --prefix frontend\" \"npm start --prefix backend-node\" \"python -m uvicorn main:app --reload --port 8000 --app-dir backend-python\"",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "npm start --prefix backend-node",
+    "dev:agent": "python -m uvicorn main:app --reload --port 8000 --app-dir backend-python",
+    "setup": "npm install --prefix frontend && npm install --prefix backend-node && pip install -r backend-python/requirements.txt"
   }
 }

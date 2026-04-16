@@ -5,6 +5,7 @@ import ParticleField from './components/ParticleField';
 import LoginStep from './components/LoginStep';
 import HospitalityStep from './components/HospitalityStep';
 import CommandMap from './components/CommandMap';
+import { buildBackendUrl } from './config/backend';
 
 /**
  * Rakshak AI — Real-Time Crisis Command System
@@ -20,8 +21,8 @@ export default function App() {
 
   // Wake up backend automatically when frontend is loaded
   useEffect(() => {
-    fetch("https://rakshak-backend-wbuz.onrender.com/api/health")
-      .catch(err => console.error("Failed to wake backend:", err));
+    fetch(buildBackendUrl('/api/health'))
+      .catch(err => console.error('Failed to wake backend:', err));
   }, []);
   const [hospitalityType, setHospitalityType] = useState(null);
 

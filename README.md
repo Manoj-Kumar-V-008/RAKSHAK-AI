@@ -1,16 +1,67 @@
-# React + Vite
+# Rakshak AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Rakshak AI is a crisis-response web app with a React frontend, a Node.js relay backend, and a Python LangGraph agent.
 
-Currently, two official plugins are available:
+## Runtime Architecture
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Production flow:
 
-## React Compiler
+`Browser -> Node relay -> Python LangGraph agent -> Gemini`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `frontend/` contains the React command-center UI.
+- `backend-node/` contains the public Node service, Socket.IO relay, SMS endpoints, and optional static frontend serving.
+- `backend-python/` contains the FastAPI + LangGraph crisis agent that performs the real AI workflow.
 
-## Expanding the ESLint configuration
+The root `server.js` is only a bootstrap that forwards legacy `node server.js` runs to `backend-node/server.js`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Local Development
+
+Install dependencies:
+
+```bash
+npm run setup
+```
+
+Run all three services together:
+
+```bash
+npm run dev
+```
+
+Default local ports:
+
+- Frontend: `http://localhost:5173`
+- Node relay: `http://localhost:3000`
+- Python agent: `http://localhost:8000`
+
+## Deployment
+
+`render.yaml` deploys:
+
+1. `rakshak-backend` as the public web app and Node relay
+2. `rakshak-agent` as the Python LangGraph agent
+
+Important deployment behavior:
+
+- The Node service builds the frontend and serves `frontend/dist` directly.
+- The Node service talks to the Python agent through `PYTHON_AGENT_URL`.
+- On Render, `PYTHON_AGENT_URL` is populated from the Python service `hostport`, which the Node backend normalizes to an internal `http://` URL.
+
+## Required Environment Variables
+
+Python agent:
+
+- `GEMINI_API_KEY`
+- `TOMTOM_API_KEY`
+
+Optional Node relay variables:
+
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_PHONE_NUMBER`
+
+Optional frontend variable for separate frontend hosting:
+
+- `VITE_BACKEND_URL`
+
+If the frontend is served by the Node relay, no frontend backend URL override is required.
