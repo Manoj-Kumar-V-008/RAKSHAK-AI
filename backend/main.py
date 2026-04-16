@@ -18,17 +18,22 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-AGENT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = AGENT_DIR.parent
+# ── Path setup ────────────────────────────────────────────────────────────────
+# main.py lives in backend/   →  BACKEND_DIR = backend/
+# agent package lives in backend/agent/
+BACKEND_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BACKEND_DIR.parent
+AGENT_DIR = BACKEND_DIR / "agent"
 
-# Load repo-level env first, then the agent-local env where model keys usually live.
+# Load env files: project root first, then backend, then agent dir
 load_dotenv(PROJECT_ROOT / ".env", override=False)
+load_dotenv(BACKEND_DIR / ".env", override=False)
 load_dotenv(AGENT_DIR / ".env", override=False)
 
-from .llm import get_ai_status
-from .nodes.alert import alert_venue
-
-from .agent import crisis_graph  # noqa: E402 — must be after load_dotenv
+# ── Agent imports (absolute, not relative — main.py is outside the agent package)
+from agent.llm import get_ai_status          # noqa: E402
+from agent.nodes.alert import alert_venue     # noqa: E402
+from agent.agent import crisis_graph          # noqa: E402
 
 # ── Active WebSocket sessions ────────────────────────────────────────────────
 active_ws: dict[str, WebSocket] = {}

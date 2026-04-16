@@ -1,0 +1,36 @@
+# Render Blueprint — Rakshak AI Backend
+# This defines the two web services needed for the backend.
+# Deploy from the Render dashboard: New > Blueprint > connect your repo.
+
+services:
+  # ── Service 1: Node.js Express + Socket.IO server ──
+  # This is the main backend that the frontend talks to.
+  - type: web
+    name: rakshak-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PYTHON_AGENT_URL
+        fromService:
+          name: rakshak-agent
+          type: web
+          property: host
+          # Render auto-resolves to: https://rakshak-agent.onrender.com
+
+  # ── Service 2: Python FastAPI + LangGraph agent ──
+  # This runs the AI crisis-response pipeline.
+  - type: web
+    name: rakshak-agent
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false   # Set manually in Render dashboard
+      - key: TOMTOM_API_KEY
+        sync: false   # Set manually in Render dashboard
