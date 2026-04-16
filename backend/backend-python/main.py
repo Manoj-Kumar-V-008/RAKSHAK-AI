@@ -7,6 +7,9 @@ GET  /api/history        →  recent crisis history
 """
 import asyncio
 import json
+import os
+import sys
+import traceback
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -19,21 +22,42 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # ── Path setup ────────────────────────────────────────────────────────────────
-# main.py lives in backend/   →  BACKEND_DIR = backend/
-# agent package lives in backend/agent/
+# main.py lives in backend-python/  →  BACKEND_DIR = backend-python/
+# agent package lives in backend-python/agent/
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_DIR.parent
 AGENT_DIR = BACKEND_DIR / "agent"
+
+# Ensure the backend-python dir is on sys.path so "agent" is importable
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 # Load env files: project root first, then backend, then agent dir
 load_dotenv(PROJECT_ROOT / ".env", override=False)
 load_dotenv(BACKEND_DIR / ".env", override=False)
 load_dotenv(AGENT_DIR / ".env", override=False)
 
-# ── Agent imports (absolute, not relative — main.py is outside the agent package)
-from agent.llm import get_ai_status          # noqa: E402
-from agent.nodes.alert import alert_venue     # noqa: E402
-from agent.agent import crisis_graph          # noqa: E402
+# ── Agent imports — wrapped in try/except so the app ALWAYS starts ───────────
+# If the agent fails to import, the health endpoint will still report the error
+# instead of the whole app crashing and Render returning an opaque 404.
+_agent_import_error: str | None = None
+crisis_graph = None
+alert_venue = None
+get_ai_status = None
+
+try:
+    from agent.llm import get_ai_status as _get_ai_status   # noqa: E402
+    from agent.nodes.alert import alert_venue as _alert_venue  # noqa: E402
+    from agent.agent import crisis_graph as _crisis_graph      # noqa: E402
+
+    get_ai_status = _get_ai_status
+    alert_venue = _alert_venue
+    crisis_graph = _crisis_graph
+    print("[RAKSHAK AI] ✅ Agent imports successful")
+except Exception as _exc:
+    _agent_import_error = f"{type(_exc).__name__}: {_exc}"
+    print(f"[RAKSHAK AI] ❌ Agent import failed: {_agent_import_error}")
+    traceback.print_exc()
 
 # ── Active WebSocket sessions ────────────────────────────────────────────────
 active_ws: dict[str, WebSocket] = {}
@@ -45,7 +69,11 @@ pending_confirmations: dict[str, dict] = {}
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    print("[RAKSHAK AI] LangGraph Agent v2.0 started")
+    if _agent_import_error:
+        print(f"[RAKSHAK AI] ⚠️  Agent NOT loaded: {_agent_import_error}")
+        print("[RAKSHAK AI] Health endpoint is available for diagnostics.")
+    else:
+        print("[RAKSHAK AI] LangGraph Agent v2.0 started")
     yield
     print("[RAKSHAK AI] Agent shutting down")
 
@@ -103,6 +131,10 @@ async def resume_confirmation(session_id: str, approved: bool) -> None:
         _append_history(session_id, sensor_data)
         return
 
+    if not alert_venue:
+        await _send(session_id, {"type": "error", "message": f"Agent not loaded: {_agent_import_error}"})
+        return
+
     try:
         approved_state = dict(pending_state)
         approved_state["confirmation_status"] = "approved"
@@ -146,6 +178,13 @@ async def resume_confirmation(session_id: str, approved: bool) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_lon: float) -> None:
+    if not crisis_graph:
+        await _send(session_id, {
+            "type": "error",
+            "message": f"Agent not loaded: {_agent_import_error}",
+        })
+        return
+
     await _send(session_id, {"type": "agent_start", "timestamp": _now()})
 
     initial: dict = {
@@ -289,7 +328,6 @@ async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_
 
     except Exception as exc:
         await _send(session_id, {"type": "error", "message": str(exc)})
-        import traceback
         traceback.print_exc()
 
 
@@ -306,22 +344,33 @@ class CrisisEvent(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"status": "Rakshak AI LangGraph Agent Online", "version": "2.0.0"}
+    return {
+        "status": "Rakshak AI LangGraph Agent Online",
+        "version": "2.0.0",
+        "agent_loaded": crisis_graph is not None,
+        "agent_error": _agent_import_error,
+    }
 
 
 @app.get("/api/health")
 async def health():
+    ai_status = get_ai_status() if get_ai_status else {"error": _agent_import_error}
     return {
-        "status": "OK",
+        "status": "OK" if crisis_graph else "DEGRADED",
+        "agent_loaded": crisis_graph is not None,
+        "agent_error": _agent_import_error,
         "active_sessions": len(active_ws),
         "pending_confirmations": len(pending_confirmations),
         "timestamp": _now(),
-        "ai": get_ai_status(),
+        "python_version": sys.version,
+        "ai": ai_status,
     }
 
 
 @app.post("/api/agent/process")
 async def process_crisis(event: CrisisEvent):
+    if not crisis_graph:
+        return {"status": "error", "message": f"Agent not loaded: {_agent_import_error}"}
     sid = event.session_id or str(uuid.uuid4())
     asyncio.create_task(run_agent(sid, event.sensor_data, event.venue_lat, event.venue_lon))
     return {"status": "processing", "session_id": sid}
