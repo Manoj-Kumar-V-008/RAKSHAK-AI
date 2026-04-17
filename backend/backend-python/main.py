@@ -394,7 +394,60 @@ async def get_history():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  WebSocket Endpoint — frontend connects here for live agent stream
+#  SMS / Call / Audit — Mock endpoints (replaces Node backend)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_audit_log: list[dict] = []
+
+
+class SMSRequest(BaseModel):
+    to: str
+    message: str
+    contactName: str = "Unknown"
+
+
+class CallRequest(BaseModel):
+    to: str
+    ttsMessage: str = ""
+
+
+@app.post("/api/sms")
+async def send_sms(req: SMSRequest):
+    entry = {
+        "timestamp": _now(),
+        "category": "SMS",
+        "message": f"📱 [MOCK] SMS to {req.contactName} ({req.to})",
+    }
+    _audit_log.append(entry)
+    if len(_audit_log) > 100:
+        _audit_log.pop(0)
+    return {
+        "success": True,
+        "mode": "mock",
+        "message": "SMS simulated (configure Twilio env vars for real delivery)",
+    }
+
+
+@app.post("/api/call")
+async def make_call(req: CallRequest):
+    entry = {
+        "timestamp": _now(),
+        "category": "CALL",
+        "message": f"📞 [MOCK] Voice call to {req.to}",
+    }
+    _audit_log.append(entry)
+    if len(_audit_log) > 100:
+        _audit_log.pop(0)
+    return {"success": True, "mode": "mock"}
+
+
+@app.get("/api/audit")
+async def get_audit():
+    return {"logs": _audit_log[-50:]}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  WebSocket Endpoint — frontend connects here DIRECTLY for live agent stream
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.websocket("/ws/{session_id}")

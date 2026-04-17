@@ -1,18 +1,5 @@
 services:
-  # ── Node.js Backend — WebSocket proxy + Twilio SMS ──
-  - type: web
-    name: rakshak-backend
-    runtime: node
-    rootDir: backend/backend-node
-    buildCommand: npm install
-    startCommand: node server.js
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PYTHON_AGENT_URL
-        value: https://rakshak-agent.onrender.com
-
-  # ── Python Agent — LangGraph + FastAPI ──
+  # ── Python Agent — FastAPI + LangGraph (single backend) ──
   - type: web
     name: rakshak-agent
     runtime: python

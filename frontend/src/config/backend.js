@@ -8,7 +8,7 @@ const explicitBackendUrl = trimTrailingSlash(import.meta.env.VITE_BACKEND_URL);
 const browserOrigin = typeof window !== 'undefined' ? window.location.origin : '';
 const isLocalBrowser = typeof window !== 'undefined' && LOCAL_HOSTS.has(window.location.hostname);
 
-export const NODE_BACKEND_URL = explicitBackendUrl || (isLocalBrowser ? 'http://localhost:3000' : '');
+export const NODE_BACKEND_URL = explicitBackendUrl || (isLocalBrowser ? 'http://localhost:8000' : '');
 
 export function buildBackendUrl(path = '') {
   if (!path) {
