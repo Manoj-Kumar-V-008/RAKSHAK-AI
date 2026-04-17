@@ -1,21 +1,21 @@
 # ── Rakshak AI Backend — Python Dependencies ──
-# LangGraph + LangChain
-langgraph>=0.2.0
-langchain-google-genai>=2.0.0
-langchain-core>=0.3.0
+# LangGraph + LangChain (pinned for stability)
+langgraph>=0.2.0,<1.0.0
+langchain-google-genai>=2.0.0,<3.0.0
+langchain-core>=0.3.0,<1.0.0
 
 # FastAPI + ASGI server
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.32.0,<1.0.0
 
 # HTTP client (Overpass, TomTom APIs)
-httpx>=0.27.0
+httpx>=0.27.0,<1.0.0
 
 # Environment variables
 python-dotenv>=1.0.0
 
 # Data validation (used by FastAPI)
-pydantic>=2.0.0
+pydantic>=2.0.0,<3.0.0
 
 # WebSocket support (included with uvicorn[standard], but explicit)
-websockets>=12.0
+websockets>=12.0,<15.0

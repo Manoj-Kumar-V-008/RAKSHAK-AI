@@ -352,9 +352,21 @@ async def root():
     }
 
 
+@app.get("/health")
+async def health_simple():
+    """Lightweight liveness probe for Render — responds instantly."""
+    return {"status": "alive", "version": "2.0.0"}
+
+
 @app.get("/api/health")
 async def health():
-    ai_status = get_ai_status() if get_ai_status else {"error": _agent_import_error}
+    ai_status = {"error": _agent_import_error}
+    try:
+        if get_ai_status:
+            ai_status = get_ai_status()
+    except Exception as exc:
+        ai_status = {"error": str(exc)}
+
     return {
         "status": "OK" if crisis_graph else "DEGRADED",
         "agent_loaded": crisis_graph is not None,

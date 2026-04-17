@@ -123,8 +123,12 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
   useEffect(() => { setAudioMuted(getMuted()); }, []);
   useEffect(() => { setAudioEngineMuted(audioMuted); }, [audioMuted]);
 
-  const formatTime = (d) =>
-    d.toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const formatTime = (d) => {
+    if (!d) return '';
+    const date = d instanceof Date ? d : new Date(d);
+    if (isNaN(date)) return '';
+    return date.toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
 
   const addEntry = useCallback((category, message, meta = null) => {
     setActionLog((prev) => {

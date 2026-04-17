@@ -1,4 +1,5 @@
 services:
+  # ── Node.js Backend — WebSocket proxy + Twilio SMS ──
   - type: web
     name: rakshak-backend
     runtime: node
@@ -9,18 +10,16 @@ services:
       - key: NODE_ENV
         value: production
       - key: PYTHON_AGENT_URL
-        fromService:
-          name: rakshak-agent
-          type: web
-          property: hostport
+        value: https://rakshak-agent.onrender.com
 
+  # ── Python Agent — LangGraph + FastAPI ──
   - type: web
     name: rakshak-agent
     runtime: python
     rootDir: backend/backend-python
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /api/health
+    healthCheckPath: /health
     envVars:
       - key: GEMINI_API_KEY
         sync: false

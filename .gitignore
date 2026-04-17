@@ -23,12 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment files (all locations)
 .env
 backend/.env
-backend/agent/.env
-backend-node/.env
-backend-python/.env
-backend-python/agent/.env
+backend/backend-node/.env
+backend/backend-python/.env
+backend/backend-python/agent/.env
 
 # Python
 __pycache__/

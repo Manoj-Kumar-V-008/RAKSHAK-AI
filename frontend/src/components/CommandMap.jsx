@@ -522,8 +522,18 @@ export default function CommandMap({ hospitalityType, userEmail }) {
 
   // ═══ Computed ═══
   const flyToService = (svc) => { if (mapInstanceRef.current) mapInstanceRef.current.flyTo([svc.lat, svc.lng], 16, { duration: 1 }); };
-  const formatTime = (d) => d.toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const formatDate = (d) => d.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' });
+  const formatTime = (d) => {
+    if (!d) return '';
+    const date = d instanceof Date ? d : new Date(d);
+    if (isNaN(date)) return '';
+    return date.toLocaleTimeString('en-IN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+  const formatDate = (d) => {
+    if (!d) return '';
+    const date = d instanceof Date ? d : new Date(d);
+    if (isNaN(date)) return '';
+    return date.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' });
+  };
 
   const filteredServices = activeFilter === 'all' ? services : services.filter((s) => s.type === activeFilter);
   const totalPages = Math.ceil(filteredServices.length / SERVICES_PER_PAGE) || 1;
