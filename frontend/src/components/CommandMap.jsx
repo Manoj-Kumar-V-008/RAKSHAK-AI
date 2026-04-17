@@ -708,7 +708,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
             <div className="cmd-sidebar-scroll">
               {/* ── TIMELINE TAB ── */}
               {sidebarTab === 'timeline' && (
-                <div className="px-2 py-3">
+                <div className="px-2 pt-3 pb-1">
                   <IncidentTimeline entries={agentState.actionLog} formatTime={agentState.formatTime} />
                 </div>
               )}
@@ -744,7 +744,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
 
               {/* ── SERVICES TAB ── */}
               {sidebarTab === 'services' && (
-                <div className="px-3 py-3">
+                <div className="px-3 pt-3 pb-1">
                   <div className="flex gap-1.5 mb-3">
                     {[
                       { key: 'all', label: 'ALL' },
@@ -799,17 +799,11 @@ export default function CommandMap({ hospitalityType, userEmail }) {
             {/* Neural Engine Button (pinned bottom) */}
             <button
               onClick={() => setNeuralOpen(!neuralOpen)}
-              className="flex items-center gap-2.5 mx-3 mb-3 px-4 py-2.5 rounded-xl"
-              style={{
-                flexShrink: 0,
-                background: neuralOpen ? 'rgba(6,182,212,0.08)' : 'rgba(15,20,30,0.5)',
-                border: `1px solid ${neuralOpen ? 'rgba(6,182,212,0.25)' : 'rgba(255,255,255,0.04)'}`,
-                cursor: 'pointer', transition: 'all 0.2s ease',
-              }}
+              className={`cmd-neural-btn ${neuralOpen ? 'is-open' : ''}`}
             >
-              <span style={{ fontSize: 16 }}>🧠</span>
-              <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, color: neuralOpen ? '#06B6D4' : 'var(--text-secondary)', letterSpacing: 1, flex: 1, textAlign: 'left' }}>NEURAL ENGINE</span>
-              <span style={{ fontFamily: mono, fontSize: 10, color: 'var(--text-dim)' }}>{neuralOpen ? '✕' : '→'}</span>
+              <span className="neural-icon">🧠</span>
+              <span className="neural-label">NEURAL ENGINE</span>
+              <span className="neural-arrow">{neuralOpen ? '✕' : '→'}</span>
             </button>
           </>
         )}
@@ -912,9 +906,10 @@ export default function CommandMap({ hospitalityType, userEmail }) {
 
       {/* ═══ BOTTOM BAR ═══ */}
       <footer className="cmd-bottombar">
-        <button className={`cmd-bottom-btn ${devConsoleOpen ? 'active' : ''}`} onClick={() => setDevConsoleOpen(!devConsoleOpen)}>
-          <span style={{ fontSize: 10 }}>⚡</span>
-          <span>{devConsoleOpen ? '✕ CLOSE' : 'CRISIS SIM'}</span>
+        <button className={`cmd-crisis-sim-btn ${devConsoleOpen ? 'active' : ''}`} onClick={() => setDevConsoleOpen(!devConsoleOpen)}>
+          <div className="sim-dot" />
+          <span className="sim-label">{devConsoleOpen ? '✕ CLOSE' : '⚡ CRISIS SIM'}</span>
+          {!devConsoleOpen && <span className="sim-tag">SIMULATE</span>}
         </button>
 
         {/* Audio toggle */}

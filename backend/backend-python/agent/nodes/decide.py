@@ -6,26 +6,33 @@ from ..tools.scoring import TYPE_WEIGHTS
 
 
 def _required_types(crisis_type: str, severity: int) -> list[str]:
-    default_order = ["hospital", "fire_station", "police"]
-    weighted = TYPE_WEIGHTS.get(crisis_type, {})
-    ordered = [
-        service_type
-        for service_type, _score in sorted(
-            weighted.items(),
-            key=lambda item: item[1],
-            reverse=True,
-        )
-    ]
+    """
+    Determine which responder types are needed based on crisis type AND severity.
+    Unlike the old logic, we don't blindly dispatch all 3 types for high severity.
+    """
+    # Crisis-specific primary and secondary responders
+    CRISIS_DISPATCH_MAP = {
+        "smoke":    {"primary": ["fire_station"], "secondary": ["hospital"], "tertiary": ["police"]},
+        "fire":     {"primary": ["fire_station"], "secondary": ["hospital"], "tertiary": ["police"]},
+        "health":   {"primary": ["hospital"], "secondary": ["police"], "tertiary": []},
+        "cardiac":  {"primary": ["hospital"], "secondary": ["police"], "tertiary": []},
+        "security": {"primary": ["police"], "secondary": ["hospital"], "tertiary": []},
+        "breach":   {"primary": ["police"], "secondary": ["hospital"], "tertiary": []},
+        "power":    {"primary": ["fire_station"], "secondary": ["police"], "tertiary": ["hospital"]},
+        "water":    {"primary": ["fire_station"], "secondary": ["hospital"], "tertiary": ["police"]},
+    }
 
-    for service_type in default_order:
-        if service_type not in ordered:
-            ordered.append(service_type)
+    dispatch = CRISIS_DISPATCH_MAP.get(crisis_type, {"primary": ["hospital"], "secondary": ["police"], "tertiary": ["fire_station"]})
 
-    if severity >= 7:
-        return ["fire_station", "hospital", "police"]
-    if severity >= 4:
-        return ordered[:2]
-    return ordered[:1]
+    if severity >= 8:
+        # Critical: dispatch primary + secondary + tertiary (if exists)
+        return dispatch["primary"] + dispatch["secondary"] + dispatch.get("tertiary", [])
+    elif severity >= 5:
+        # Elevated: dispatch primary + secondary
+        return dispatch["primary"] + dispatch["secondary"]
+    else:
+        # Low: dispatch primary only
+        return dispatch["primary"]
 
 
 def _fallback_decision(
@@ -176,9 +183,11 @@ AVAILABLE SERVICES:
 {chr(10).join(summary_lines)}
 
 RULES:
-- For severity >= 7: dispatch all 3 service types (fire_station, hospital, police)
-- For severity 4-6: dispatch at least 2 relevant service types
-- For severity <= 3: dispatch 1 primary service type
+- Match responder types to crisis type: fire/smoke→fire_station primary, health/cardiac→hospital primary, breach/security→police primary
+- For severity >= 8: dispatch primary + secondary + tertiary responders (if applicable)
+- For severity 5-7: dispatch primary + secondary responders
+- For severity <= 4: dispatch primary responder only
+- NEVER dispatch fire_station for security/breach crises. NEVER dispatch fire_station for health/cardiac crises.
 - Prefer the highest-scoring unit of each required type
 
 RESPOND IN THIS EXACT FORMAT:
@@ -217,17 +226,18 @@ REJECTED:
             dispatched.append(service)
             seen_types.add(service_type)
 
-    if severity >= 7:
-        for required_type in ["fire_station", "hospital", "police"]:
-            if required_type in seen_types:
-                continue
-            fallback_choice = next(
-                (service for service in scored if service.get("service_type") == required_type),
-                None,
-            )
-            if fallback_choice:
-                dispatched.append(fallback_choice)
-                seen_types.add(required_type)
+    # Fill in any missing required types using _required_types (crisis-aware)
+    required = _required_types(crisis_type, severity)
+    for required_type in required:
+        if required_type in seen_types:
+            continue
+        fallback_choice = next(
+            (service for service in scored if service.get("service_type") == required_type),
+            None,
+        )
+        if fallback_choice:
+            dispatched.append(fallback_choice)
+            seen_types.add(required_type)
 
     if not dispatched:
         for service in scored:
