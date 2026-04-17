@@ -12,7 +12,7 @@ services:
         fromService:
           name: rakshak-agent
           type: web
-          property: host
+          property: hostport
 
   - type: web
     name: rakshak-agent
