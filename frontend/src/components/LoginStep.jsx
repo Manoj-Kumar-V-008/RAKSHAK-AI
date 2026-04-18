@@ -6,8 +6,8 @@ import { motion } from 'framer-motion';
  * Split-screen hero layout with cinematic background and glassmorphic form.
  */
 export default function LoginStep({ onLogin }) {
-  const [email, setEmail] = useState('');
-  const [securityKey, setSecurityKey] = useState('');
+  const [email, setEmail] = useState('operator@rakshak.ai');
+  const [securityKey, setSecurityKey] = useState('rakshak2026');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [timeStr, setTimeStr] = useState('');
@@ -28,11 +28,10 @@ export default function LoginStep({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!email.trim() || !securityKey.trim()) { setError('ALL FIELDS REQUIRED'); return; }
     setIsSubmitting(true);
     await new Promise((r) => setTimeout(r, 1800));
     setIsSubmitting(false);
-    onLogin({ email });
+    onLogin({ email: email || 'operator@rakshak.ai' });
   };
 
   /* ── color tokens ── */

@@ -14,17 +14,52 @@ import { buildBackendUrl } from './config/backend';
  *   Step 1: Login (Auth)
  *   Step 2: Hospitality Selection (Context)
  *   Step 3: Command Map (Deployment)
+ *
+ * Session persistence: state is saved to sessionStorage so that a page
+ * refresh keeps the user on their current step instead of forcing a
+ * full re-login. sessionStorage is cleared when the tab is closed.
  */
+
+const SESSION_KEY = 'rakshak_session';
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(step, email, hospitality) {
+  try {
+    sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ step, email, hospitality })
+    );
+  } catch {
+    // storage unavailable — silently ignore
+  }
+}
+
 export default function App() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [userEmail, setUserEmail] = useState('');
+  // Restore from session on first render, otherwise start at step 1
+  const saved = loadSession();
+  const [currentStep, setCurrentStep] = useState(saved?.step ?? 1);
+  const [userEmail, setUserEmail] = useState(saved?.email ?? '');
+  const [hospitalityType, setHospitalityType] = useState(saved?.hospitality ?? null);
 
   // Wake up backend automatically when frontend is loaded
   useEffect(() => {
     fetch(buildBackendUrl('/api/health'))
       .catch(err => console.error('Failed to wake backend:', err));
   }, []);
-  const [hospitalityType, setHospitalityType] = useState(null);
+
+  // Persist state to sessionStorage whenever it changes
+  useEffect(() => {
+    saveSession(currentStep, userEmail, hospitalityType);
+  }, [currentStep, userEmail, hospitalityType]);
 
   /** Step 1 → Step 2: After successful login */
   const handleLogin = ({ email }) => {
