@@ -416,8 +416,48 @@ async def send_sms(req: SMSRequest):
     entry = {
         "timestamp": _now(),
         "category": "SMS",
-        "message": f"📱 [MOCK] SMS to {req.contactName} ({req.to})",
+        "message": f"📱 SMS to {req.contactName} ({req.to})",
     }
+
+    # Try Twilio if credentials are configured
+    twilio_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    twilio_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    twilio_msg_svc = os.environ.get("TWILIO_MESSAGING_SERVICE_SID", "")
+    twilio_from = os.environ.get("TWILIO_PHONE_NUMBER", "")
+
+    if twilio_sid and twilio_token and (twilio_msg_svc or twilio_from):
+        try:
+            from twilio.rest import Client
+            client = Client(twilio_sid, twilio_token)
+            # Use messaging_service_sid if available, otherwise use from_ number
+            send_args = {"body": req.message[:1600], "to": req.to}
+            if twilio_msg_svc:
+                send_args["messaging_service_sid"] = twilio_msg_svc
+            else:
+                send_args["from_"] = twilio_from
+            result = client.messages.create(**send_args)
+            entry["message"] = f"✅ Real SMS sent to {req.contactName} ({req.to}) — SID: {result.sid}"
+            _audit_log.append(entry)
+            if len(_audit_log) > 100:
+                _audit_log.pop(0)
+            return {
+                "success": True,
+                "mode": "live",
+                "sid": result.sid,
+            }
+        except Exception as exc:
+            entry["message"] = f"❌ SMS to {req.to} failed: {exc}"
+            _audit_log.append(entry)
+            if len(_audit_log) > 100:
+                _audit_log.pop(0)
+            return {
+                "success": False,
+                "mode": "live",
+                "error": str(exc),
+            }
+
+    # Fallback: mock mode
+    entry["message"] = f"📱 [MOCK] SMS to {req.contactName} ({req.to})"
     _audit_log.append(entry)
     if len(_audit_log) > 100:
         _audit_log.pop(0)

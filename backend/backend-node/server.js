@@ -57,6 +57,7 @@ console.log(`[CONFIG] Python Agent WS:   ${PYTHON_WS_URL}`);
 const TWILIO_SID   = process.env.TWILIO_ACCOUNT_SID || '';
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN || '';
 const TWILIO_FROM  = process.env.TWILIO_PHONE_NUMBER || '';
+const TWILIO_MSG_SVC = process.env.TWILIO_MESSAGING_SERVICE_SID || '';
 
 let twilioClient = null;
 if (TWILIO_SID && TWILIO_TOKEN) {
@@ -143,13 +144,15 @@ app.post('/api/sms', async (req, res) => {
     sid: null,
   };
 
-  if (twilioClient && TWILIO_FROM) {
+  if (twilioClient && (TWILIO_MSG_SVC || TWILIO_FROM)) {
     try {
-      const result = await twilioClient.messages.create({
-        body: message.substring(0, 1600),
-        from: TWILIO_FROM,
-        to: to,
-      });
+      const sendArgs = { body: message.substring(0, 1600), to: to };
+      if (TWILIO_MSG_SVC) {
+        sendArgs.messagingServiceSid = TWILIO_MSG_SVC;
+      } else {
+        sendArgs.from = TWILIO_FROM;
+      }
+      const result = await twilioClient.messages.create(sendArgs);
       smsRecord.status = 'sent';
       smsRecord.sid = result.sid;
       smsHistory.push(smsRecord);

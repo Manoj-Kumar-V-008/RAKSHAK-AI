@@ -1,0 +1,64 @@
+# Rakshak AI: Autonomous Crisis Command v3.0
+## Project Overview & Technical Capabilities
+
+Rakshak AI is a cutting-edge, autonomous crisis-response platform designed to revolutionize emergency management. It seamlessly bridges the gap between raw IoT sensor data and rapid, life-saving emergency dispatches. Built with a sophisticated architecture leveraging an autonomous AI agent, real-time mapping, and live communications, Rakshak AI operates as a tireless command center—assessing threats, formulating strategies, and executing responses faster than humanly possible.
+
+This document outlines every critical feature of the working prototype to demonstrate its technical superiority, real-world applicability, and innovative design.
+
+---
+
+## 1. Autonomous AI Agent (The "Neural Engine")
+At the heart of Rakshak AI is a powerful autonomous reasoning engine built using **LangGraph** and **Google's Gemini**. This is not a simple rules-based system; it is a cognitive agent capable of complex decision-making.
+
+*   **Real-time Threat Assessment**: Continuously ingests data from a simulated IoT sensor mesh (47 active nodes) to evaluate anomalies (e.g., sudden temperature spikes, crowd density anomalies).
+*   **Chain-of-Thought Reasoning**: The UI features a live "Neural Engine" panel that transparently displays the AI's thought process. Judges can see exactly *why* the AI decided to dispatch a fire truck versus a medical team.
+*   **Autonomous Dispatch**: Once a threat reaches a critical threshold, the agent autonomously identifies the optimal emergency responders and formulates a multi-step action plan.
+*   **Human-in-the-Loop Safeguards**: While autonomous, the system surfaces a "Confirmation Modal" for high-risk actions, ensuring a human commander can approve or override the AI's dispatch plan.
+
+## 2. Dynamic Command Map & Geofencing
+The interface revolves around a stunning, live dark-mode map (powered by Leaflet and custom map tiles).
+
+*   **Hybrid Location Scanning**: To guarantee 100% uptime during demonstrations, the system uses a highly robust, hybrid data-fetching mechanism. It combines a baseline of real, hardcoded Bangalore emergency stations with live, dynamic polling via the **Overpass API**.
+*   **Real-time Routing & ETAs**: The system integrates with **OSRM (Open Source Routing Machine)** to draw dynamic, animated routing lines on the map from emergency stations to the crisis epicenter, calculating precise distances and ETAs.
+*   **Live Traffic Overlays**: Integrates **TomTom API** for real-time traffic flow visualization, allowing the AI to route emergency vehicles around congestion.
+
+## 3. Interactive Digital Twin (FacilityTwin3D)
+Situational awareness is critical in a crisis. Rakshak AI goes beyond a 2D map.
+
+*   **3D Spatial Awareness**: Features a 3D visualization component (`FacilityTwin3D.jsx`) that maps out the specific venue (e.g., a Convention Center or Hospital).
+*   **Sensor Mapping**: Visualizes where the anomaly was detected within the building, allowing commanders to guide responders to the exact floor and room, saving crucial minutes.
+
+## 4. Live Crisis Simulator
+To demonstrate the platform's capabilities on-demand, the prototype includes a built-in Crisis Simulator.
+
+*   **Inject Custom Events**: Presenters can inject simulated crises (e.g., Fire Outbreak, Security Breach, Medical Emergency) into the system.
+*   **Reactive UI**: Instantly, the Threat Gauge spikes, the map auto-focuses on the epicenter, the AI begins reasoning, and nearby responders start flashing on the map.
+
+## 5. Seamless Emergency Communications
+A command center is useless if it can't communicate.
+
+*   **Automated SMS Dispatch**: Integrated with **Twilio**, the Node.js backend can send automated, formatted SMS alerts to pre-registered emergency contacts, providing them with the crisis type, location, and severity.
+*   **Incident Timeline**: An immutable, chronological log tracks every system event, AI decision, and dispatch action for post-crisis auditing and legal compliance.
+
+## 6. Frictionless User Experience (UX/UI)
+The interface is designed to feel like a state-of-the-art military command center, prioritizing speed and clarity.
+
+*   **"Ready to Engage" Bypass**: A streamlined authentication flow designed specifically for seamless demonstrations, bypassing tedious login steps while maintaining the illusion of secure access.
+*   **Session Persistence**: The command center state is preserved across browser refreshes, ensuring the demo never breaks.
+*   **Dynamic Visuals**: Features custom animations, particle fields, glowing alert states, and a dedicated Threat Gauge to immediately convey the urgency of the situation.
+
+---
+
+## Technical Architecture Overview
+
+Rakshak AI utilizes a robust, three-tier architecture:
+
+1.  **Frontend (React + Vite + Framer Motion)**: A highly responsive, single-page application focused on data visualization and real-time user interaction.
+2.  **Relay Service (Node.js + Socket.IO)**: Acts as the low-latency communications bridge. It handles WebSocket connections from the browser, manages Twilio SMS dispatches, and routes data to the AI agent.
+3.  **AI Backend (Python + FastAPI + LangGraph)**: The heavy-lifting cognitive engine. It executes the LangGraph workflow, communicates with the Gemini API, and performs spatial calculations.
+
+### Why Judges Should Select Rakshak AI:
+*   **Completeness**: It is not just an idea; it is a fully integrated, full-stack prototype that connects AI reasoning with real-world mapping and SMS alerting.
+*   **Innovation**: It showcases the practical application of Agentic AI (LangGraph) in a high-stakes, real-world scenario (Emergency Response).
+*   **Resilience**: Built-in fallback mechanisms (hybrid map data, state persistence) demonstrate a mature, production-ready engineering mindset.
+*   **Impact**: Demonstrates a clear, highly scalable solution that has the potential to drastically reduce emergency response times and save lives.

@@ -61,6 +61,30 @@ export default function App() {
     saveSession(currentStep, userEmail, hospitalityType);
   }, [currentStep, userEmail, hospitalityType]);
 
+  // Push browser history when step changes so the back button works
+  useEffect(() => {
+    const stateObj = { step: currentStep };
+    // Only push if the current history state differs (avoid duplicate pushes)
+    if (!window.history.state || window.history.state.step !== currentStep) {
+      window.history.pushState(stateObj, '', '');
+    }
+  }, [currentStep]);
+
+  // Listen for browser back/forward button
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (event.state && typeof event.state.step === 'number') {
+        setCurrentStep(event.state.step);
+      } else {
+        // If no state, go to step 1 (login) and push it so another back doesn't leave the app
+        setCurrentStep(1);
+        window.history.pushState({ step: 1 }, '', '');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   /** Step 1 → Step 2: After successful login */
   const handleLogin = ({ email }) => {
     setUserEmail(email);

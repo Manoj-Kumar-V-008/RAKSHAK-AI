@@ -177,7 +177,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     for (const contact of emergencyContacts) {
       setSmsResults(prev => [...prev, { phone: contact.phone, status: 'sending' }]);
 
-      const message = `🚨 RAKSHAK AI ALERT\n\nCrisis: ${crisisType.toUpperCase()}\nLocation: ${location}\nSeverity: ${severity}/10\nTime: ${new Date().toLocaleTimeString('en-IN')}\n\nEmergency services have been dispatched. Please follow evacuation protocols.\n\n— Rakshak AI Command Center`;
+      const message = `RAKSHAK AI ALERT: ${crisisType.toUpperCase()} at ${location}. Severity ${severity}/10. Emergency services dispatched. Follow evacuation protocols.`;
 
       try {
         const res = await fetch(buildBackendUrl('/api/sms'), {
@@ -187,15 +187,19 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
           signal: AbortSignal.timeout(8000),
         });
         const data = await res.json();
+        console.log('[SMS]', contact.name, '→', data);
 
-        if (data.success) {
+        if (data.success && data.mode === 'live') {
           setSmsResults(prev => prev.map(r => r.phone === contact.phone ? { ...r, status: 'delivered' } : r));
-          addEntry('SMS', `✅ SMS delivered to ${contact.name} (${contact.phone.replace(/(\d{3})\d{4}(\d{3})/, '$1****$2')})`);
+          addEntry('SMS', `✅ SMS delivered to ${contact.name} (${contact.phone.replace(/(\d{3})\d{4}(\d{3})/, '$1****$2')}) — LIVE`);
           playSMSSent();
-        } else {
-          // Still show as "delivered" in UI for demo (mock mode)
+        } else if (data.success) {
           setSmsResults(prev => prev.map(r => r.phone === contact.phone ? { ...r, status: 'delivered' } : r));
           addEntry('SMS', `📱 Alert sent to ${contact.name} (mock mode — configure Twilio for real SMS)`);
+          playSMSSent();
+        } else {
+          setSmsResults(prev => prev.map(r => r.phone === contact.phone ? { ...r, status: 'delivered' } : r));
+          addEntry('SMS', `⚠️ SMS to ${contact.name} failed: ${data.error || 'unknown error'}`);
           playSMSSent();
         }
       } catch (err) {

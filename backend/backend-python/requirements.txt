@@ -19,3 +19,6 @@ pydantic>=2.0.0,<3.0.0
 
 # WebSocket support (included with uvicorn[standard], but explicit)
 websockets>=12.0,<15.0
+
+# Twilio — SMS and voice dispatch
+twilio>=9.0.0

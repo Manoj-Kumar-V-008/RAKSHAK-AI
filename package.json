@@ -4,10 +4,10 @@
   "description": "Root orchestrator for the Rakshak AI web app, Node relay, and Python LangGraph agent",
   "scripts": {
     "start": "node server.js",
-    "dev": "npx concurrently -n \"FRONTEND,NODE,AGENT\" -c \"cyan,green,magenta\" \"npm run dev --prefix frontend\" \"npm start --prefix backend-node\" \"python -m uvicorn main:app --reload --port 8000 --app-dir backend-python\"",
+    "dev": "npx concurrently -n \"FRONTEND,NODE,AGENT\" -c \"cyan,green,magenta\" \"npm run dev --prefix frontend\" \"npm start --prefix backend/backend-node\" \"cd backend/backend-python && set PYTHONIOENCODING=utf-8 && python -m uvicorn main:app --reload --port 8000\"",
     "dev:frontend": "npm run dev --prefix frontend",
-    "dev:backend": "npm start --prefix backend-node",
-    "dev:agent": "python -m uvicorn main:app --reload --port 8000 --app-dir backend-python",
-    "setup": "npm install --prefix frontend && npm install --prefix backend-node && pip install -r backend-python/requirements.txt"
+    "dev:backend": "npm start --prefix backend/backend-node",
+    "dev:agent": "cd backend/backend-python && set PYTHONIOENCODING=utf-8 && python -m uvicorn main:app --reload --port 8000",
+    "setup": "npm install --prefix frontend && npm install --prefix backend/backend-node && pip install -r backend/backend-python/requirements.txt"
   }
 }
