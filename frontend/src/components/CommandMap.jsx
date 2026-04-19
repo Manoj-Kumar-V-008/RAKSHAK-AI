@@ -208,6 +208,21 @@ async function fetchNearbyServices(lat, lng, radiusMeters = 5000) {
 }
 
 const mono = "var(--font-mono, 'JetBrains Mono', monospace)";
+const EMPTY_CRISIS_STATE = {
+  active: false,
+  type: null,
+  sensorData: null,
+  services: [],
+  alertedNodes: [],
+  respondersActive: false,
+  awaitingConfirmation: false,
+  serviceReasons: {},
+  bestService: null,
+  types: [],
+  isResolved: false,
+  reviewVisible: false,
+  reviewStatus: null,
+};
 
 export default function CommandMap({ hospitalityType, userEmail }) {
   // ═══ Map State ═══
@@ -236,17 +251,14 @@ export default function CommandMap({ hospitalityType, userEmail }) {
   const SERVICES_PER_PAGE = 10;
 
   // ═══ Crisis State ═══
-  const [crisisInfo, setCrisisInfo] = useState({ active: false, type: null });
+  const [crisisInfo, setCrisisInfo] = useState(EMPTY_CRISIS_STATE);
+  const crisisInfoRef = useRef(EMPTY_CRISIS_STATE);
   const [notifications, setNotifications] = useState([]);
   const [audioMuted, setAudioMutedLocal] = useState(() => getMuted());
 
   useEffect(() => {
-    if (!crisisInfo.active) return;
-    const timeout = setTimeout(() => {
-      setCrisisInfo(prev => ({ ...prev, active: false, respondersActive: false }));
-    }, 20000);
-    return () => clearTimeout(timeout);
-  }, [crisisInfo.active]);
+    crisisInfoRef.current = crisisInfo;
+  }, [crisisInfo]);
 
   // ═══ Autonomous Agent ═══
   const addNotification = useCallback((type, message) => {
@@ -262,13 +274,32 @@ export default function CommandMap({ hospitalityType, userEmail }) {
   const agentState = useAutonomousAgent({
     hospitalityType, services, mapCenter,
     onCrisisUpdate: (info) => {
-      setCrisisInfo(prev => {
-        if (!info.active && prev.active) {
-          addNotification('system', 'Crisis resolved. All units returning to standby.');
-          return { ...prev, active: false, respondersActive: false };
-        }
-        return { ...prev, ...info };
-      });
+      const prev = crisisInfoRef.current;
+      const merged = { ...prev, ...info };
+      const shouldPreserveReview = Boolean(
+        prev.sensorData
+        || info.sensorData
+        || prev.services?.length
+        || info.services?.length
+        || prev.reviewVisible
+        || info.reviewVisible
+      );
+
+      if (!info.active && prev.active && info.reviewStatus !== 'rejected') {
+        addNotification('system', 'Crisis resolved. Review snapshot preserved for judges.');
+      }
+
+      const nextCrisisInfo = shouldPreserveReview
+        ? {
+            ...merged,
+            active: Boolean(info.active),
+            respondersActive: info.active ? merged.respondersActive : false,
+            reviewVisible: true,
+          }
+        : merged;
+
+      crisisInfoRef.current = nextCrisisInfo;
+      setCrisisInfo(nextCrisisInfo);
       // Generate notifications for real events
       if (info.active && info.sensorData) {
         addNotification('crisis', `CRISIS DETECTED: ${(info.sensorData.type || 'UNKNOWN').toUpperCase()} at ${info.sensorData.location || 'Unknown'}`);
@@ -276,9 +307,31 @@ export default function CommandMap({ hospitalityType, userEmail }) {
       if (info.respondersActive) {
         addNotification('dispatch', `Emergency units dispatched to ${info.sensorData?.location || 'incident site'}`);
       }
-      if (mapInstanceRef.current) plotServices(services, mapInstanceRef.current, info);
+      if (info.reviewStatus === 'rejected') {
+        addNotification('system', 'Dispatch rejected. Incident review remains pinned until cleared.');
+      }
+      if (mapInstanceRef.current) plotServices(services, mapInstanceRef.current, nextCrisisInfo);
     },
   });
+
+  const hasIncidentReview = Boolean(
+    crisisInfo.reviewVisible
+    && (
+      crisisInfo.sensorData
+      || crisisInfo.services?.length
+      || agentState.chainOfThought.length
+    )
+  );
+
+  const handleDismissIncidentReview = useCallback(() => {
+    agentState.dismissIncidentReview();
+    crisisInfoRef.current = EMPTY_CRISIS_STATE;
+    setCrisisInfo(EMPTY_CRISIS_STATE);
+    if (mapInstanceRef.current) {
+      plotServices(services, mapInstanceRef.current, EMPTY_CRISIS_STATE);
+    }
+    addNotification('system', 'Incident review cleared. Neural Engine returned to live monitoring.');
+  }, [agentState, addNotification, plotServices, services]);
 
   // ═══ Agent boot ═══
   const [agentBooted, setAgentBooted] = useState(false);
@@ -328,10 +381,14 @@ export default function CommandMap({ hospitalityType, userEmail }) {
   const svcStatuses = useMemo(() => {
     const map = {};
     const alertedIds = new Set((crisisInfo?.alertedNodes || []).map(id => String(id)));
+    const hasPinnedReview = crisisInfo?.active || crisisInfo?.reviewVisible;
     services.forEach(svc => {
       const h = svc.id % 100;
-      if (crisisInfo?.active && alertedIds.has(String(svc.id))) {
-        map[svc.id] = { label: 'Dispatched', color: '#EF4444' };
+      if (hasPinnedReview && alertedIds.has(String(svc.id))) {
+        map[svc.id] = {
+          label: crisisInfo?.active ? 'Dispatched' : 'Last Dispatch',
+          color: crisisInfo?.active ? '#EF4444' : '#F97316',
+        };
       } else if (h < 3) {
         map[svc.id] = { label: 'Critical', color: '#EF4444' };
       } else {
@@ -339,7 +396,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
       }
     });
     return map;
-  }, [services, crisisInfo?.active, crisisInfo?.alertedNodes]);
+  }, [services, crisisInfo?.active, crisisInfo?.alertedNodes, crisisInfo?.reviewVisible]);
 
   const nearestHospital = useMemo(() => services.find(s => s.type === 'hospital'), [services]);
 
@@ -381,7 +438,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
     const mergedServices = Array.from(allServicesMap.values());
 
     mergedServices.forEach((svc) => {
-      const isAlerted = crisis?.active && Array.isArray(crisis?.alertedNodes) && crisis.alertedNodes.some(id => String(id) === String(svc.id));
+      const isAlerted = (crisis?.active || crisis?.reviewVisible) && Array.isArray(crisis?.alertedNodes) && crisis.alertedNodes.some(id => String(id) === String(svc.id));
       const icon = createServiceIcon(svc, isAlerted);
       const marker = L.marker([svc.lat, svc.lng || svc.lon], { icon });
       marker.bindPopup(
@@ -705,7 +762,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
                   score={agentState.threatLevel}
                   cascadeRisk={agentState.cascadeRisk}
                   crisisType={crisisInfo?.sensorData?.type || ''}
-                  isActive={crisisInfo.active || agentState.isProcessing}
+                  isActive={crisisInfo.active || crisisInfo.reviewVisible || agentState.isProcessing}
                 />
               </div>
             </div>
@@ -878,6 +935,8 @@ export default function CommandMap({ hospitalityType, userEmail }) {
                   steps={agentState.chainOfThought}
                   activeNode={agentState.activeNode}
                   isProcessing={agentState.isProcessing}
+                  isPinned={hasIncidentReview && !agentState.isProcessing}
+                  onDismiss={hasIncidentReview && !agentState.isProcessing ? handleDismissIncidentReview : undefined}
                 />
               </div>
             </motion.div>
@@ -916,10 +975,20 @@ export default function CommandMap({ hospitalityType, userEmail }) {
           <motion.div className="cmd-neural-drawer" initial={{ x: '100%', opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '100%', opacity: 0 }} transition={{ type: 'spring', damping: 28, stiffness: 220 }}>
             <div className="flex items-center justify-between px-4" style={{ height: 36, flexShrink: 0, borderBottom: '1px solid rgba(0,242,255,0.06)', background: 'rgba(0,0,0,0.4)' }}>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: crisisInfo.active ? '#EF4444' : '#22C55E', boxShadow: `0 0 6px ${crisisInfo.active ? '#EF4444' : '#22C55E'}` }} />
+                <div className="w-2 h-2 rounded-full" style={{ background: crisisInfo.active ? '#EF4444' : crisisInfo.reviewVisible ? '#F59E0B' : '#22C55E', boxShadow: `0 0 6px ${crisisInfo.active ? '#EF4444' : crisisInfo.reviewVisible ? '#F59E0B' : '#22C55E'}` }} />
                 <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: 1.5 }}>NEURAL ENGINE</span>
               </div>
-              <button onClick={() => setNeuralOpen(false)} style={{ background: 'none', border: '1px solid rgba(0,242,255,0.1)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: 'var(--text-dim)', fontFamily: mono, fontSize: 10 }}>✕ CLOSE</button>
+              <div className="flex items-center gap-2">
+                {hasIncidentReview && !agentState.isProcessing && (
+                  <button
+                    onClick={handleDismissIncidentReview}
+                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: '#EF4444', fontFamily: mono, fontSize: 10 }}
+                  >
+                    ✕ CLEAR REVIEW
+                  </button>
+                )}
+                <button onClick={() => setNeuralOpen(false)} style={{ background: 'none', border: '1px solid rgba(0,242,255,0.1)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', color: 'var(--text-dim)', fontFamily: mono, fontSize: 10 }}>✕ CLOSE</button>
+              </div>
             </div>
             <div style={{ flex: 1, minHeight: 0 }}>
               <AgentGraph agentState={agentState} crisisInfo={crisisInfo} services={services} />
