@@ -40,7 +40,7 @@ function TypewriterText({ text, speed = 18, onDone }) {
   );
 }
 
-export default function ChainOfThought({ steps = [], activeNode = null, isProcessing = false, isPinned = false, onDismiss = null }) {
+export default function ChainOfThought({ steps = [], activeNode = null, isProcessing = false }) {
   const scrollRef = useRef(null);
   const [expandedIdx, setExpandedIdx] = useState(null);
   const [stickToBottom, setStickToBottom] = useState(true);
@@ -89,29 +89,10 @@ export default function ChainOfThought({ steps = [], activeNode = null, isProces
           <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 700, color: '#00F2FF', letterSpacing: 1.5 }}>
             CHAIN OF THOUGHT
           </span>
-          {isPinned && !isProcessing && (
-            <span style={{ fontFamily: mono, fontSize: 7, color: '#F59E0B', letterSpacing: 1, padding: '2px 6px', borderRadius: 999, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.16)' }}>
-              REVIEW LOCKED
-            </span>
-          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: mono, fontSize: 8, color: 'rgba(255,255,255,0.25)', letterSpacing: 1 }}>
-            {steps.length} STEPS
-          </span>
-          {onDismiss && !isProcessing && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDismiss();
-              }}
-              style={{ width: 22, height: 22, borderRadius: 6, border: '1px solid rgba(239,68,68,0.18)', background: 'rgba(239,68,68,0.08)', color: '#EF4444', cursor: 'pointer', fontFamily: mono, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              title="Clear preserved incident review"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        <span style={{ fontFamily: mono, fontSize: 8, color: 'rgba(255,255,255,0.25)', letterSpacing: 1 }}>
+          {steps.length} STEPS
+        </span>
       </div>
 
       {/* Steps */}

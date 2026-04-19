@@ -147,27 +147,11 @@ function AgentGraphInner({ agentState, crisisInfo }) {
   useEffect(() => {
     if (crisisInfo?.active) {
       frozenCrisis.current = crisisInfo; // capture the rich payload
-      return;
     }
-    if (crisisInfo?.reviewVisible && crisisInfo?.sensorData) {
-      frozenCrisis.current = crisisInfo;
-      return;
-    }
-    frozenCrisis.current = null;
   }, [crisisInfo]);
 
   // Derived — always use the frozen snapshot for rendering if available
-  const displayCrisis = crisisInfo?.active || crisisInfo?.reviewVisible ? crisisInfo : frozenCrisis.current;
-
-  useEffect(() => {
-    if (crisisInfo?.active) {
-      setServiceStatus({});
-      return;
-    }
-    if (!crisisInfo?.reviewVisible && !crisisInfo?.sensorData) {
-      setServiceStatus({});
-    }
-  }, [crisisInfo?.active, crisisInfo?.reviewVisible, crisisInfo?.sensorData?.sensor_id]);
+  const displayCrisis = crisisInfo?.active ? crisisInfo : frozenCrisis.current;
 
   // Parse Gemini threat-assessment entry from action log
   const analysisEntry = useMemo(() => {
@@ -217,7 +201,7 @@ function AgentGraphInner({ agentState, crisisInfo }) {
     const nds = [];
     const eds = [];
 
-    const hasCrisis = !!(displayCrisis?.active || displayCrisis?.reviewVisible || frozenCrisis.current);
+    const hasCrisis = !!(displayCrisis?.active || frozenCrisis.current);
 
     // ── Core node status text ──
     let coreStatus = 'Monitoring system telemetry for anomalies...';
@@ -377,7 +361,7 @@ function AgentGraphInner({ agentState, crisisInfo }) {
 
   // ─────────────── Render ───────────────
   const isCrisisActive = !!crisisInfo?.active;
-  const hasFrozen = !!(displayCrisis?.reviewVisible || frozenCrisis.current);
+  const hasFrozen = !!frozenCrisis.current;
   const statusDot = isProcessing ? '#F59E0B' : isCrisisActive ? '#EF4444' : hasFrozen ? '#A855F7' : '#22C55E';
   const statusLabel = isProcessing
     ? 'ANALYZING'

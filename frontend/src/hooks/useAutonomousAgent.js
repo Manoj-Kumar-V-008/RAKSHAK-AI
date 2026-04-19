@@ -153,28 +153,6 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     setChainOfThought(prev => [...prev, { node, text, factors, score, time }]);
   }, []);
 
-  const resetIncidentArtifacts = useCallback(() => {
-    setDispatchProgress([]);
-    setEvacuationZone(null);
-    setAlertMessage(null);
-    setServiceScores([]);
-    setCascadeRisk(0);
-    setSmsResults([]);
-    setConfirmationVisible(false);
-    setConfirmationData(null);
-    setActiveNode(null);
-  }, []);
-
-  const dismissIncidentReview = useCallback(() => {
-    resetIncidentArtifacts();
-    setChainOfThought([]);
-    setIsProcessing(false);
-    setSystemStatus(STATUS.NOMINAL);
-    setThreatLevel(0);
-    setThreatTier('GREEN');
-    latestSensorDataRef.current = null;
-  }, [resetIncidentArtifacts]);
-
   // ── Send dispatch confirmation via Socket.IO → Node → Python ───────────────
   const sendDispatchConfirmation = useCallback((approved) => {
     const ws = socketRef.current;
@@ -260,7 +238,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
         score: s.scores?.total ?? null,
       })));
 
-      onCrisisUpdateRef.current?.({
+      onCrisisUpdate?.({
         active: true,
         type: sensorData?.type ?? targetType,
         types: dispatchTypes,
@@ -296,44 +274,52 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
       // Resolve after delay
       setTimeout(() => {
         setSystemStatus(STATUS.RESOLVED);
+        setThreatLevel(10);
         setIsProcessing(false);
         setActiveNode(null);
         playResolved();
         addEntry('RESOLVED', '✅ Crisis response cycle complete. All units deployed, alerts sent, zones evacuated.');
-        addCOTStep('alert_venue', 'Crisis response cycle complete. All dispatched units are en route. SMS alerts confirmed. Review snapshot locked until the operator closes it.', ['All units deployed', `${emergencyContacts.length} SMS alerts sent`, 'Manual close required to dismiss']);
+        addCOTStep('alert_venue', 'Crisis response cycle complete. All dispatched units are en route. SMS alerts confirmed. Returning to monitoring state in 10 seconds.', ['All units deployed', `${emergencyContacts.length} SMS alerts sent`, 'Monitoring resume scheduled']);
 
-        onCrisisUpdateRef.current?.({
-          active: false,
-          respondersActive: false,
-          awaitingConfirmation: false,
-          isResolved: true,
-          reviewVisible: true,
-        });
+        setTimeout(() => {
+          setSystemStatus(STATUS.NOMINAL);
+          setThreatLevel(0);
+          setThreatTier('GREEN');
+          setDispatchProgress([]);
+          setEvacuationZone(null);
+          setAlertMessage(null);
+          setServiceScores([]);
+          setCascadeRisk(0);
+          setSmsResults([]);
+          setChainOfThought([]);
+          onCrisisUpdate?.({ active: false, type: null });
+        }, 12000);
       }, 6000);
       }
 
       setConfirmationData(null);
     }
-  }, [confirmationData, sendSMSAlerts, triggerEvacuation, addEntry, addCOTStep, addComms, emergencyContacts.length, sendDispatchConfirmation]);
+  }, [confirmationData, onCrisisUpdate, sendSMSAlerts, triggerEvacuation, addEntry, addCOTStep, addComms, emergencyContacts.length, sendDispatchConfirmation]);
 
   const handleConfirmReject = useCallback(() => {
     sendDispatchConfirmation(false);
     setConfirmationVisible(false);
     setConfirmationData(null);
     setIsProcessing(false);
-    setSystemStatus(STATUS.MONITORING);
+    setSystemStatus(STATUS.NOMINAL);
+    setThreatLevel(20);
     setActiveNode(null);
     setDispatchProgress([]);
     addEntry('CONFIRM', '✕ DISPATCH REJECTED by operator. Standing down.');
-    addCOTStep('confirm', 'Dispatch rejected. Maintaining a preserved operator-review snapshot until it is manually closed.', ['Dispatch cancelled', 'Review snapshot preserved', 'Re-trigger available']);
-    onCrisisUpdateRef.current?.({
-      active: false,
-      respondersActive: false,
-      awaitingConfirmation: false,
-      reviewVisible: true,
-      reviewStatus: 'rejected',
-    });
-  }, [addEntry, addCOTStep, sendDispatchConfirmation]);
+    addCOTStep('confirm', 'Dispatch rejected. Maintaining elevated monitoring state. Operator may re-evaluate situation.', ['Dispatch cancelled', 'Monitoring continues', 'Re-trigger available']);
+    setTimeout(() => {
+      setThreatLevel(0);
+      setThreatTier('GREEN');
+      setCascadeRisk(0);
+      setChainOfThought([]);
+      onCrisisUpdate?.({ active: false, type: null });
+    }, 5000);
+  }, [addEntry, addCOTStep, onCrisisUpdate, sendDispatchConfirmation]);
 
   // ── Handle messages from Python agent (relayed through Node) ───────────────
   function handlePythonMessage(msg) {
@@ -475,18 +461,18 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
       case 'resolved':
         if (confirmationVisibleRef.current) break;
         setSystemStatus(STATUS.RESOLVED);
+        setThreatLevel(15);
         setIsProcessing(false);
         setActiveNode(null);
         playResolved();
         addEntry('RESOLVED', `✅ ${msg.summary ?? 'Crisis fully handled by LangGraph agent.'}`);
-        addCOTStep('alert_venue', 'LangGraph completed the incident workflow. The reasoning trace and dispatch graph remain pinned for judge/operator review until closed.', ['Workflow completed', 'Review snapshot preserved', 'Manual close required']);
-        onCrisisUpdateRef.current?.({
-          active: false,
-          respondersActive: false,
-          awaitingConfirmation: false,
-          isResolved: true,
-          reviewVisible: true,
-        });
+        setTimeout(() => {
+          setSystemStatus(STATUS.NOMINAL);
+          setThreatLevel(0); setThreatTier('GREEN');
+          setDispatchProgress([]); setEvacuationZone(null); setAlertMessage(null);
+          setServiceScores([]); setCascadeRisk(0); setSmsResults([]); setChainOfThought([]);
+          onCrisisUpdateRef.current?.({ active: false, type: null });
+        }, 10000);
         break;
       case 'awaiting_confirmation':
         setIsProcessing(false);
@@ -498,17 +484,10 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
         setConfirmationVisible(false);
         setConfirmationData(null);
         setIsProcessing(false);
-        setSystemStatus(STATUS.MONITORING);
+        setSystemStatus(STATUS.NOMINAL);
         setActiveNode(null);
         setDispatchProgress([]);
         addEntry('CONFIRM', msg.message ?? 'Dispatch rejected by operator.');
-        onCrisisUpdateRef.current?.({
-          active: false,
-          respondersActive: false,
-          awaitingConfirmation: false,
-          reviewVisible: true,
-          reviewStatus: 'rejected',
-        });
         break;
       case 'error':
         addEntry('SYSTEM', `⚠️ Agent error: ${msg.message}`);
@@ -593,29 +572,16 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
   // Sends crisis event DIRECTLY to Python LangGraph Agent via WebSocket
   const processCrisis = useCallback(async (sensorData) => {
     // Reset state
-    resetIncidentArtifacts();
     setChainOfThought([]);
+    setSmsResults([]);
+    setConfirmationVisible(false);
+    setConfirmationData(null);
 
     setSystemStatus(STATUS.ANALYZING);
     setThreatLevel(40);
-    setThreatTier('YELLOW');
     setIsProcessing(true);
     latestSensorDataRef.current = sensorData;
-    onCrisisUpdateRef.current?.({
-      active: true,
-      type: sensorData?.type ?? null,
-      analyzing: true,
-      sensorData,
-      services: [],
-      alertedNodes: [],
-      respondersActive: false,
-      awaitingConfirmation: false,
-      serviceReasons: {},
-      bestService: null,
-      types: [],
-      isResolved: false,
-      reviewVisible: true,
-    });
+    onCrisisUpdate?.({ active: true, type: sensorData?.type ?? null, analyzing: true, sensorData });
 
     playWarningTone();
     addComms('📤 FORWARDING SENSOR PAYLOAD TO LANGGRAPH NEURAL ENGINE...');
@@ -638,11 +604,10 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
       addEntry('SYSTEM', '❌ Neural Engine disconnected. Cannot reach agent pipeline.');
       setSystemStatus(STATUS.NOMINAL);
       setThreatLevel(0);
-      setThreatTier('GREEN');
       setIsProcessing(false);
-      onCrisisUpdateRef.current?.({ active: false, reviewVisible: false });
+      onCrisisUpdate?.({ active: false });
     }
-  }, [mapCenter, addComms, addEntry, resetIncidentArtifacts]);
+  }, [mapCenter, onCrisisUpdate, addComms, addEntry]);
 
   return {
     systemStatus,
@@ -675,7 +640,6 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     removeContact,
     handleConfirmApprove,
     handleConfirmReject,
-    dismissIncidentReview,
     handleToggleMute: () => {
       const newVal = !getMuted();
       setAudioEngineMuted(newVal);
