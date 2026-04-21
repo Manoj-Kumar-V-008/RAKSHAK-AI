@@ -23,6 +23,7 @@ class CrisisState(TypedDict, total=False):
     cascade_risk: float       # 0.0 - 1.0
 
     # ── Intel ──
+    frontend_services: list   # NEW: passed from frontend
     nearby_services: list     # raw Overpass results
     traffic_info: dict        # TomTom traffic summary
 

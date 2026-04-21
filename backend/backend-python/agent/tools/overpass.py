@@ -33,9 +33,42 @@ def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.asin(math.sqrt(a))
 
 
-async def fetch_nearby_services(lat: float, lon: float, crisis_type: str, radius_m: int = 8000) -> list[dict]:
+async def fetch_nearby_services(lat: float, lon: float, crisis_type: str, radius_m: int = 8000, frontend_services: list = None) -> list[dict]:
     """Query OpenStreetMap Overpass API for real nearby emergency services."""
     amenities = CRISIS_AMENITIES.get(crisis_type, ["hospital", "fire_station", "police"])
+
+    if frontend_services:
+        filtered = []
+        for s in frontend_services:
+            svc_type = AMENITY_TO_TYPE.get(s.get("type", ""), s.get("type", ""))
+            if svc_type in amenities:
+                normalized = dict(s)
+                normalized["service_type"] = svc_type
+                normalized["distance_km"] = s.get("distance_km", s.get("distance", 5.0))
+                normalized["id"] = str(s.get("id"))
+                normalized["lon"] = s.get("lon", s.get("lng"))
+                filtered.append(normalized)
+        
+        filtered.sort(key=lambda x: x.get("distance_km", 999))
+        
+        # Ensure diversity in the top results
+        diverse_services = []
+        counts = {}
+        for s in filtered:
+            t = s["service_type"]
+            if counts.get(t, 0) < 5:
+                diverse_services.append(s)
+                counts[t] = counts.get(t, 0) + 1
+                
+        for s in filtered:
+            if len(diverse_services) >= 15:
+                break
+            if s not in diverse_services:
+                diverse_services.append(s)
+                
+        diverse_services.sort(key=lambda x: x.get("distance_km", 999))
+        return diverse_services[:15]
+
     amenity_filter = "|".join(amenities)
 
     query = f"""

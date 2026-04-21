@@ -611,6 +611,7 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
         data: sensorData,
         venue_lat: lat,
         venue_lon: lng,
+        services: services,
       }));
       addComms('✅ CRISIS EVENT SENT TO LANGGRAPH NEURAL ENGINE.');
     } else {

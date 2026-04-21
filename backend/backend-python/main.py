@@ -177,7 +177,7 @@ async def resume_confirmation(session_id: str, approved: bool) -> None:
 #  Core agent runner — streams every node result to the client
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_lon: float) -> None:
+async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_lon: float, frontend_services: list = None) -> None:
     if not crisis_graph:
         await _send(session_id, {
             "type": "error",
@@ -198,6 +198,7 @@ async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_
         "threat_score":     0.0,
         "threat_level":     "GREEN",
         "cascade_risk":     0.0,
+        "frontend_services": frontend_services or [],
         "nearby_services":  [],
         "traffic_info":     {},
         "scored_services":  [],
@@ -264,13 +265,13 @@ async def run_agent(session_id: str, sensor_data: dict, venue_lat: float, venue_
                             "data": [
                                 {
                                     "id":           s.get("id"),
-                                    "name":         s["name"],
-                                    "type":         s["service_type"],
-                                    "total":        s["scores"]["total"],
-                                    "breakdown":    s["scores"],
-                                    "distance_km":  s["distance_km"],
-                                    "lat":          s["lat"],
-                                    "lon":          s["lon"],
+                                    "name":         s.get("name", "Unknown"),
+                                    "type":         s.get("service_type"),
+                                    "total":        s.get("scores", {}).get("total", 0),
+                                    "breakdown":    s.get("scores", {}),
+                                    "distance_km":  s.get("distance_km", 0),
+                                    "lat":          s.get("lat", 0),
+                                    "lon":          s.get("lon", s.get("lng", 0)),
                                 }
                                 for s in scored[:6]
                             ],
@@ -512,6 +513,7 @@ async def ws_endpoint(websocket: WebSocket, session_id: str):
                     sensor_data=msg["data"],
                     venue_lat=msg.get("venue_lat", 12.9716),
                     venue_lon=msg.get("venue_lon", 77.5946),
+                    frontend_services=msg.get("services", [])
                 ))
             elif msg.get("type") == "dispatch_confirmation":
                 asyncio.create_task(resume_confirmation(

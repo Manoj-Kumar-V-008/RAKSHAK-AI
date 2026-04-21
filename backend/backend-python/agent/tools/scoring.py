@@ -81,18 +81,19 @@ def score_service(service: dict, crisis_type: str, traffic_info: dict) -> dict:
       Type Match   20 pts  →  from TYPE_WEIGHTS table
     """
     dist_km = max(service.get("distance_km", 5.0), 0.0)
-    distance_score = max(0.0, 30.0 - dist_km * 6.0)
+    # Exponential decay preserves distance ranking even at large distances
+    distance_score = 45.0 * math.exp(-0.15 * dist_km)
 
     congestion     = traffic_info.get("congestion_ratio", 0.4)
-    traffic_score  = 25.0 * (1.0 - congestion)
+    traffic_score  = 20.0 * (1.0 - congestion)
 
     is_open = service.get("is_open")
     if is_open is True:
-        avail_score = 25.0
+        avail_score = 15.0
     elif is_open is False:
         avail_score = 0.0
     else:
-        avail_score = 12.0   # unknown
+        avail_score = 7.0   # unknown
 
     svc_type   = service.get("service_type", "")
     weights    = TYPE_WEIGHTS.get(crisis_type, {})
