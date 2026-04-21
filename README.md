@@ -12,8 +12,11 @@
 
 <br/>
 
-### 🔴 [Live Working Prototype] - https://rakshak-ai-front-end-008.web.app/
+### 🔴 [Live Working Prototype](https://rakshak-ai-front-end-008.web.app/)
 *(Click to view the deployed application)*
+
+> **⚠️ Note to Judges (Free Tier Hosting):** 
+> Because this prototype is hosted on free-tier services, the backend servers may "spin down" after a period of inactivity. If the dashboard or AI seems unresponsive or fails on the very first try, **please wait and refresh the page**. It just takes a moment for the AI microservices to wake up!
 
 </div>
 
