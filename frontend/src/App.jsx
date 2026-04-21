@@ -49,11 +49,43 @@ export default function App() {
   const [currentStep, setCurrentStep] = useState(saved?.step ?? 1);
   const [userEmail, setUserEmail] = useState(saved?.email ?? '');
   const [hospitalityType, setHospitalityType] = useState(saved?.hospitality ?? null);
+  const [backendReady, setBackendReady] = useState(false);
 
-  // Wake up backend automatically when frontend is loaded
+  // Wake up backend with aggressive retry polling (handles Render cold-start)
   useEffect(() => {
-    fetch(buildBackendUrl('/api/health'))
-      .catch(err => console.error('Failed to wake backend:', err));
+    let cancelled = false;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 20; // 20 × 4s = 80s max wait (plenty for Render)
+
+    async function wakeBackend() {
+      while (!cancelled && attempt < MAX_ATTEMPTS) {
+        try {
+          const res = await fetch(buildBackendUrl('/api/health'), {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (res.ok) {
+            console.log(`✅ Backend ready (attempt ${attempt + 1})`);
+            if (!cancelled) setBackendReady(true);
+            return;
+          }
+        } catch (_) {
+          // Backend still waking up
+        }
+        attempt++;
+        if (!cancelled && attempt < MAX_ATTEMPTS) {
+          console.log(`⏳ Backend warming up... (attempt ${attempt}/${MAX_ATTEMPTS})`);
+          await new Promise(r => setTimeout(r, 4000));
+        }
+      }
+      // Even after max attempts, set ready so we don't permanently block
+      if (!cancelled) {
+        console.warn('⚠️ Backend warm-up timed out, proceeding anyway.');
+        setBackendReady(true);
+      }
+    }
+
+    wakeBackend();
+    return () => { cancelled = true; };
   }, []);
 
   // Persist state to sessionStorage whenever it changes
@@ -118,6 +150,7 @@ export default function App() {
             key="command-map"
             hospitalityType={hospitalityType}
             userEmail={userEmail}
+            backendReady={backendReady}
           />
         )}
       </AnimatePresence>

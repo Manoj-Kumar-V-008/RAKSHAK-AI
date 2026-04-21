@@ -594,7 +594,17 @@ export default function useAutonomousAgent({ hospitalityType, services, mapCente
     const lat = mapCenter?.lat ?? 12.9716;
     const lng = mapCenter?.lng ?? mapCenter?.lon ?? 77.5946;
 
-    const ws = socketRef.current;
+    // Wait for WebSocket to be open (handles cold-start race condition)
+    let ws = socketRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      addComms('⏳ Waiting for Neural Engine connection...');
+      for (let i = 0; i < 16; i++) { // 16 × 500ms = 8 seconds max wait
+        await new Promise(r => setTimeout(r, 500));
+        ws = socketRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) break;
+      }
+    }
+
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'crisis_event',

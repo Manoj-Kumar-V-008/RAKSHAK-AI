@@ -209,7 +209,7 @@ async function fetchNearbyServices(lat, lng, radiusMeters = 5000) {
 
 const mono = "var(--font-mono, 'JetBrains Mono', monospace)";
 
-export default function CommandMap({ hospitalityType, userEmail }) {
+export default function CommandMap({ hospitalityType, userEmail, backendReady }) {
   // ═══ Map State ═══
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -979,6 +979,7 @@ export default function CommandMap({ hospitalityType, userEmail }) {
           setTimeout(() => agentState.processCrisis(sensorData), 100);
         }}
         isProcessing={agentState.isProcessing}
+        backendReady={backendReady}
       />
     </motion.div>
   );

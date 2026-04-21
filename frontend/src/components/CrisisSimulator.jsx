@@ -38,11 +38,12 @@ const SCENARIOS = [
  * CrisisSimulator — Dev console for triggering crisis events.
  * Controlled externally via `isOpen` prop from the bottom bar.
  */
-export default function CrisisSimulator({ onTrigger, isProcessing, isOpen }) {
+export default function CrisisSimulator({ onTrigger, isProcessing, isOpen, backendReady = true }) {
   const [lastTriggered, setLastTriggered] = useState(null);
+  const isDisabled = isProcessing || !backendReady;
 
   const handleTrigger = (scenario) => {
-    if (isProcessing) return;
+    if (isDisabled) return;
     setLastTriggered(scenario.shortLabel);
     onTrigger(scenario.data);
     setTimeout(() => setLastTriggered(null), 2000);
@@ -81,7 +82,7 @@ export default function CrisisSimulator({ onTrigger, isProcessing, isOpen }) {
               </span>
             </div>
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--text-dim)', letterSpacing: 1 }}>
-              {isProcessing ? '⏳ PROCESSING...' : 'DEV MODE · SIMULATED IoT DATA'}
+              {!backendReady ? '⏳ WARMING UP BACKEND...' : isProcessing ? '⏳ PROCESSING...' : 'DEV MODE · SIMULATED IoT DATA'}
             </span>
           </div>
 
@@ -91,18 +92,18 @@ export default function CrisisSimulator({ onTrigger, isProcessing, isOpen }) {
               <button
                 key={s.shortLabel}
                 onClick={() => handleTrigger(s)}
-                disabled={isProcessing}
+                disabled={isDisabled}
                 className="flex-1 min-w-[100px] px-3 py-2.5 rounded-xl flex items-center gap-2"
                 style={{
                   background: lastTriggered === s.shortLabel ? `${s.color}18` : 'rgba(19,25,36,0.5)',
                   border: `1px solid ${lastTriggered === s.shortLabel ? s.color : 'rgba(255,255,255,0.05)'}`,
-                  cursor: isProcessing ? 'not-allowed' : 'pointer',
-                  opacity: isProcessing ? 0.5 : 1,
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
+                  opacity: isDisabled ? 0.5 : 1,
                   transition: 'all 0.25s ease',
                   fontFamily: 'var(--font-mono)',
                 }}
                 onMouseEnter={(e) => {
-                  if (!isProcessing) {
+                  if (!isDisabled) {
                     e.currentTarget.style.borderColor = s.color;
                     e.currentTarget.style.background = `${s.color}10`;
                   }
