@@ -10,6 +10,11 @@
 [![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
 
+<br/>
+
+### 🔴 [Live Working Prototype](https://your-live-link-here.com) 
+*(Click to view the deployed application)*
+
 </div>
 
 ---
