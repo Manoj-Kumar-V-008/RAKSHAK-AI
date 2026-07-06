@@ -1,91 +1,57 @@
-# Rakshak AI Global Agent Specification
+# Rakshak AI Agent Specification
 
-> **Durable Project Specification**
-> This document serves as the canonical, durable specification for **Rakshak AI**, defining system intent, agent mission, core principles, architecture, workflow, safety guardrails, and success metrics. Implementation details may evolve, but system behavior must always align with this specification.
+## Project Overview
+Rakshak AI is a privacy-first AI assistant designed to protect citizens, venue guests, and facilities from scams, cybercrime, and physical emergencies using intelligent AI assistance combined with strict human oversight.
 
----
+## Mission
+- **Detect Threats:** Continuously monitor sensor mesh telemetry, user reports, and crisis signals in real time.
+- **Analyze Situations:** Dynamically evaluate threat severity, geographical radius, and mitigation requirements.
+- **Recommend Safe Actions:** Formulate structured emergency response plans and responder routing strategies.
+- **Assist Emergency Response:** Provide precise geospatial mapping, 3D facility layout context, and emergency contact dispatching.
+- **Always Keep Humans in Control:** Ensure human operators maintain absolute authority over high-stakes dispatches and real-world actions.
 
-## Project Vision
-
-**Rakshak AI** is a privacy-first AI agent ecosystem designed to protect citizens and venue guests from scams, cybercrime, and physical emergencies through intelligent assistance, dynamic threat analysis, and robust human oversight.
-
----
-
-## Agent Mission
-
-The mission of Rakshak AI is to:
-1. **Accelerate Crisis Response:** Minimize critical delays during emergency situations by automating geographic analysis, threat evaluation, and responder routing.
-2. **Protect Citizens & Venues:** Provide zero-touch threat detection and real-time situational awareness for hospitality venues, corporate facilities, and public spaces.
-3. **Ensure Human Control:** Maintain safety-critical human-in-the-loop oversight before executing any high-stakes external actions.
-
----
-
-## Core Principles
-
-- **Privacy First:** Minimize Personally Identifiable Information (PII) collection and storage. Never broadcast unencrypted guest or victim details.
-- **Human Safety:** Prioritize human life and physical safety above all technical or automated operations.
-- **Human Approval:** Require explicit Human-in-the-Loop (HITL) authorization for critical, real-world actions (such as SMS dispatches).
-- **Transparency:** Provide clear, observable execution traces showing how and why threat assessments were formed.
-- **Explainability:** Ensure all AI reasoning steps are auditable and human-understandable.
-- **Reliable Decision Making:** Use deterministic fallback mechanisms (e.g., cached geofences, static emergency databases) when external services fail.
-- **Secure Tool Usage:** Validate tool inputs, parameters, and rate limits strictly before tool execution.
-
----
-
-## High-Level Architecture
+## System Architecture
 
 ```
-User / Sensor Mesh
-       ↓
-React Command Dashboard (Frontend)
-       ↓
-Node.js Express API Gateway (Orchestration Relay)
-       ↓
-Python AI Agent (LangGraph Workflow Engine)
-       ↓
-Google Gemini Core LLM
-       ↓
-External Tools & MCP-Inspired Integrations
-(Twilio SMS API | Overpass OSM API | TomTom Maps | Geolocation)
+React Frontend
+      ↓
+Node.js Backend
+      ↓
+Python AI Agent (LangGraph)
+      ↓
+Google Gemini
+      ↓
+External Tools
 ```
 
-### Integrated Systems & External Tools
-- **Twilio SMS API:** Automated dispatch of structured crisis SMS alerts to emergency contacts.
-- **Overpass API (OpenStreetMap):** Dynamic geographical radius scanning for police, fire, and medical stations.
-- **Maps & Geolocation:** Distance, ETA calculations (OSRM), and live traffic flow visualization (TomTom).
-- **Emergency Contacts Database:** Verified registry of venue security and first responders.
+### Integrated Tools & Services
+- **Twilio SMS:** Automated dispatch of structured crisis SMS alerts to first responders and emergency contacts.
+- **Overpass API:** Dynamic geographical radius scanning for nearby police, fire, and medical stations via OpenStreetMap.
+- **Maps & Geolocation:** Routing, distance/ETA calculations (OSRM), and live traffic flow visualization (TomTom).
+- **Emergency Contacts:** Verified directory of venue security, first responders, and emergency contacts.
 
----
-
-## Agent Workflow
-
-The agent operates in a structured 6-phase lifecycle:
-
-```
-[1. Detection] → [2. Reasoning] → [3. Tool Selection] → [4. Human Approval] → [5. Action] → [6. Logging]
-```
-
-1. **Detection:** Ingest threat signals, IoT telemetry, or user-injected crisis events.
-2. **Reasoning:** Evaluate severity, geographical radius, and mitigation options via LangGraph cognitive nodes.
-3. **Tool Selection:** Determine required external integrations (e.g., Overpass API station lookup, Twilio dispatch).
-4. **Human Approval:** Present the execution plan to human operators via a dedicated checkpoint modal.
-5. **Action:** Execute authorized dispatches and route emergency responder notifications.
-6. **Logging:** Record an immutable timestamped event log for post-incident auditing.
-
----
+## Agent Responsibilities
+- **Understand User Reports:** Parse incident reports, sensor data, and crisis telemetry accurately.
+- **Reason About Threats:** Formulate multi-step cognitive plans and determine severity levels using LangGraph workflow nodes.
+- **Choose Appropriate Tools:** Select external APIs dynamically (e.g., station radius search, location lookup, SMS formatting).
+- **Ask for Human Approval:** Pause execution at a designated checkpoint before initiating any high-risk external actions.
+- **Log Decisions Safely:** Construct timestamped, auditable execution traces for post-incident review and legal compliance.
 
 ## Guardrails
+- **Never perform emergency dispatch automatically:** High-stakes external actions are strictly gated by human authorization.
+- **Require explicit human approval:** Present execution plans to operators via a Human-in-the-Loop checkpoint window before dispatching alerts.
+- **Validate all tool inputs:** Geolocation coordinates, phone numbers, threat levels, and API parameters are strictly sanitized before execution.
+- **Fail safely:** If external integrations (e.g., Overpass API or Twilio) fail or time out, the system degrades gracefully to pre-cached static emergency databases.
+- **Prioritize user privacy:** Minimize Personally Identifiable Information (PII) collection and mask sensitive guest/victim details in logs.
+- **Keep reasoning observable:** Maintain visible, auditable execution traces without exposing internal hidden model states.
 
-- **Human-in-the-Loop Requirement:** High-risk actions (e.g., SMS dispatch to emergency services) must require human operator confirmation during the approval checkpoint window.
-- **Tool Call Validation:** Every tool parameter (coordinates, phone numbers, threat levels) must be validated before execution.
-- **Fail-Safe Execution:** If external APIs (Overpass API or Twilio) fail or time out, the system must degrade gracefully to local static emergency databases and notify the operator.
-- **Rate Limiting & Anti-Spam:** Cooldown timers prevent duplicate or runaway automated dispatches.
+## Success Principles
+- **Transparency:** Full operator visibility into every decision step and tool execution path.
+- **Human Safety:** Prioritizing human life and physical security above automated operations.
+- **Explainability:** Clear, human-understandable reasoning trajectories accessible to dispatchers.
+- **Reliability:** Deterministic fallback mechanisms guaranteeing operational continuity during API disruptions.
+- **Privacy-First Design:** Strict minimization of PII and secure data handling standards.
 
 ---
 
-## Success Metrics
-
-- **False Positives Reduced:** Minimizing erroneous threat escalations through multi-point sensor and reasoning checks.
-- **Human Approval Rate:** Tracking operator confirmation rates to refine AI confidence thresholds.
-- **Successful Intervention:** Reducing average incident response and dispatch latency.
-- **Transparent Reasoning:** Ensuring 100% of autonomous escalations produce auditable execution trajectories.
+> *Note: This document serves as the canonical, durable project specification for Rakshak AI (Spec-Driven Development). While implementation details, microservices, and UI frameworks may evolve over time, system behavior must always align with the specification defined in this file.*

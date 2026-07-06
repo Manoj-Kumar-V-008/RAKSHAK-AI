@@ -31,14 +31,14 @@
 ## ✨ Core Features & Concepts
 
 - **🧠 LangGraph Agent Pipeline:** A Python-powered LangGraph agent that ingests incident data and autonomously evaluates threat severity without human bottleneck.
-- **👁️ Trajectory Observability Dashboard:** A dedicated UI panel provides full execution trace and reasoning visibility. This operator observability allows commanders to monitor real-time decision steps, debug agent behavior, and avoid fragile success traps.
-- **🛡️ Human-in-the-Loop (HITL) Checkpoint:** Critical real-world actions (such as emergency SMS dispatches) require explicit operator confirmation during an approval checkpoint window, establishing **Effective Trust** before execution.
-- **🗺️ Hyper-Local Dynamic Mapping & MCP-Inspired Tooling:** Integrates with the Overpass API to scan the venue's geographical radius for nearest Police, Fire, or Medical units following Model Context Protocol (MCP) design philosophy.
-- **💬 Standardized SMS Dispatch:** Automatically formats and blasts SOS SMS alerts to designated emergency responders via Twilio.
+- **👁️ Trajectory Observability (Chain-of-Thought):** A dedicated UI panel provides full visibility into the agent's observable execution path, reasoning checkpoints, and decision flow. This operator observability allows commanders to monitor real-time decision steps, debug agent behavior, and avoid fragile success traps without exposing internal hidden model states.
+- **🛡️ Human-in-the-Loop (HITL) Checkpoint:** High-stakes external actions (such as emergency SMS dispatches) require human confirmation during a dedicated 10-second approval window. This Human-in-the-Loop checkpoint prevents unintended autonomous actions and builds **Effective Trust** between human dispatchers and the AI.
+- **🗺️ MCP-Inspired Tool Integration:** Rakshak AI's external services (Twilio SMS API, Overpass API, Maps, and Geolocation) are architected following the Model Context Protocol (MCP) design philosophy to encourage standardized, secure, and extensible agent-tool communication.
 - **🏢 Digital Twin & Spatial Awareness:** Includes a 3D Facility Twin to give on-site security spatial layout awareness of the threat location within the building.
 - **❤️ Rakshak Neural Core:** A central visual indicator tracking system status and threat levels in real time.
 - **🎮 Built-In Crisis Simulator:** Allows stakeholders to inject simulated emergency scenarios into the system to test AI response latency safely.
-- **📦 Agent Skills & Progressive Disclosure:** Modular skills organized inside `.agents/skills/` (such as `agents-for-good`) load metadata on demand to reduce context rot and maintain high agent efficiency.
+- **📦 Agent Skills & Progressive Disclosure:** Modular capabilities are organized as Agent Skills inside `.agents/skills/` (such as `agents-for-good`). The AI loads metadata on demand via **Progressive Disclosure**, preventing context rot and maintaining high operational efficiency.
+- **🔒 Guardrails & Deterministic Validation:** Includes input parameter validation, rate limiting, and automated pre-flight script checks (`validate_safety_config.py`) to ensure fail-safe operation.
 
 ---
 
@@ -47,7 +47,7 @@
 - **AI & Logic Engine:** Google Gemini LLM, LangChain, LangGraph, Python 3, FastAPI, Uvicorn.
 - **Frontend Command Center:** React.js (Vite), Framer Motion, React Flow (`@xyflow/react`), Modern CSS.
 - **API Gateway & Orchestration:** Node.js, Express.js.
-- **MCP-Inspired Tool Integrations:** Twilio SMS API, Overpass API (OpenStreetMap), TomTom Traffic API.
+- **MCP-Inspired External Integrations:** Twilio SMS API, Overpass API (OpenStreetMap), TomTom Traffic API, OSRM Routing.
 - **Spec-Driven Development:** Global durable specification maintained in [agents.md](agents.md).
 
 ---
@@ -103,8 +103,8 @@ flowchart TB
 
 ### Architectural Highlights:
 - **Progressive Disclosure via Agent Skills:** Skills in `.agents/skills/` load full guidance only when relevant triggers occur, avoiding context bloat.
-- **MCP-Inspired Extensibility:** External integrations follow the Model Context Protocol design philosophy, standardizing tool-agent communication.
-- **Human-in-the-Loop Safeguards:** External dispatches pause at an explicit approval checkpoint for operator confirmation.
+- **MCP-Inspired Extensibility:** External services (Twilio, Overpass API, Maps, Geolocation) are architected following the Model Context Protocol (MCP) design philosophy to encourage standardized, secure, and extensible agent-tool communication.
+- **Human-in-the-Loop Checkpoints:** High-stakes dispatches require explicit human confirmation during a 10-second approval window to build Effective Trust.
 - **Trajectory Observability:** Observable execution traces surface every step from detection to tool selection without revealing internal hidden model states.
 
 ---
@@ -155,18 +155,18 @@ npm run validate:safety
 
 ---
 
-## 🎓 Alignment with Google Agents for Good Course
+## 🎓 Alignment with Google's AI Agents Course
 
-This repository demonstrates key concepts taught in Google's **Agents for Good** course:
+This repository demonstrates key concepts taught in Google's **AI Agents** course:
 
 - **✓ Agent Skills:** Modular capability packages housed under `.agents/skills/` providing specialized instructions and SOPs.
 - **✓ Progressive Disclosure:** Small metadata footprints in active memory trigger skill loading only when required, preventing context rot.
-- **✓ Model Context Protocol (MCP) Design Philosophy:** External integrations (Twilio, Overpass, Maps) are architected following MCP design patterns for extensible agent-tool communication.
-- **✓ Human-in-the-Loop (HITL):** High-stakes dispatches require explicit human confirmation during an approval checkpoint, fostering Effective Trust.
-- **✓ Trajectory Observability:** Observable execution steps are visualized live on the dashboard, giving operators clear insight into agent progression while avoiding fragile success traps.
-- **✓ Safety Guardrails:** Deterministic validation, rate limiting, and safe fallback mechanisms ensure reliability in crisis scenarios.
-- **✓ Spec-Driven Development:** The durable global specification in [agents.md](agents.md) guides evolving implementations.
-- **✓ Deterministic Validation:** Automated validation scripts (`validate_safety_config.py`) verify safety parameters before deployment.
+- **✓ MCP Design Philosophy:** Rakshak AI's external services are architected following the Model Context Protocol (MCP) design philosophy to encourage standardized, secure, and extensible agent-tool communication.
+- **✓ Human-in-the-Loop (HITL):** High-stakes emergency dispatches require explicit human confirmation during a 10-second approval window, establishing Effective Trust before action execution.
+- **✓ Trajectory Observability:** Observable execution steps are visualised live on the dashboard, giving operators clear insight into agent progression, execution traces, and reasoning checkpoints to debug agent behavior and avoid fragile success traps.
+- **✓ Guardrails:** Deterministic validation, parameter sanitization, rate limiting, and safe fallback mechanisms ensure operational safety in crisis scenarios.
+- **✓ Deterministic Validation:** Automated validation scripts (`validate_safety_config.py`) verify safety parameters and configuration integrity prior to deployment.
+- **✓ Spec-Driven Development:** The durable global specification in [agents.md](agents.md) guides evolving implementations while keeping project goals aligned over time.
 
 ---
 
