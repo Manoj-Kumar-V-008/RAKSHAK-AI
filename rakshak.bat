@@ -1,4 +1,5 @@
 @echo off
+@REM Rakshak AI Command Launcher & Environment Bootstrap
 echo [RAKSHAK AI] Starting Command Center...
 echo [RAKSHAK AI] --------------------------
 echo [RAKSHAK AI] Ensure you have Node.js and Python installed.

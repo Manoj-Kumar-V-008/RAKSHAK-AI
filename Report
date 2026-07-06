@@ -62,3 +62,12 @@ Rakshak AI utilizes a robust, three-tier architecture:
 *   **Innovation**: It showcases the practical application of Agentic AI (LangGraph) in a high-stakes, real-world scenario (Emergency Response).
 *   **Resilience**: Built-in fallback mechanisms (hybrid map data, state persistence) demonstrate a mature, production-ready engineering mindset.
 *   **Impact**: Demonstrates a clear, highly scalable solution that has the potential to drastically reduce emergency response times and save lives.
+
+---
+
+## 7. Agents for Good Safety & Ethical AI Framework
+Rakshak AI incorporates the **Agents for Good** skill framework to guarantee safety-critical reliability:
+*   **Fail-Safe Dispatching**: Multi-tier redundancy for alert broadcasts with automatic human-in-the-loop overrides.
+*   **WCAG AAA Accessibility Compliance**: Tailored high-contrast color visual indicators (Cyan `#06B6D4`, Amber `#F59E0B`, Red `#EF4444`) designed specifically for high-stress crisis command operations.
+*   **Automated Safety Validation**: Built-in deterministic validator (`validate_safety_config.py`) that audits API keys and configuration integrity before deployment.
+

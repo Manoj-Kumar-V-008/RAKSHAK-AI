@@ -1,4 +1,4 @@
-// Root bootstrap for the real Node relay.
+// Root bootstrap entrypoint for Node backend relay
 // This keeps legacy `node server.js` deployments pointed at the maintained
 // backend entrypoint in `backend-node/server.js`.
 import('./backend-node/server.js').catch((error) => {

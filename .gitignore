@@ -34,3 +34,6 @@ backend/backend-python/agent/.env
 __pycache__/
 *.pyc
 *.pyo
+
+# Agents for Good Safety & Customizations
+.agents/scratch/

@@ -1,3 +1,7 @@
+/**
+ * Rakshak AI - Node.js Express & Socket.IO Relay Backend
+ * Manages WebSocket connections, static frontend serving, and Twilio SMS alerting.
+ */
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

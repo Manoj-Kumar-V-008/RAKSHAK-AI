@@ -8,6 +8,7 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "npm start --prefix backend/backend-node",
     "dev:agent": "cd backend/backend-python && set PYTHONIOENCODING=utf-8 && python -m uvicorn main:app --reload --port 8000",
+    "validate:safety": "python .agents/skills/agents-for-good/scripts/validate_safety_config.py",
     "setup": "npm install --prefix frontend && npm install --prefix backend/backend-node && pip install -r backend/backend-python/requirements.txt"
   }
 }

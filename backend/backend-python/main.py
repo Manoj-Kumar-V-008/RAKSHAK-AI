@@ -4,6 +4,7 @@ POST /api/agent/process  →  trigger crisis via REST
 WS   /ws/{session_id}    →  bidirectional: send crisis event, receive live stream
 GET  /api/health         →  liveness probe
 GET  /api/history        →  recent crisis history
+Includes Agents for Good safety compliance and validation.
 """
 import asyncio
 import json
