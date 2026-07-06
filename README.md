@@ -35,6 +35,7 @@
 - **🏢 Digital Twin & Spatial Awareness:** Includes a 3D Facility Twin to give on-site security spatial layout awareness of the threat location within the building.
 - **❤️ Rakshak Neural Core:** A central, visually dynamic pulsing orb that acts as the real-time heartbeat of the system, instantly shifting states (Cyan to Red) to provide visceral threat awareness.
 - **🎮 Built-In Crisis Simulator:** Allows stakeholders to artificially inject emergencies into the system to run fire drills and test AI response latency safely.
+- **🛡️ Agents for Good Integration:** Built-in agent safety protocols, accessibility styling guidelines (WCAG compliance), data privacy compliance, and a deterministic configuration validator (`validate_safety_config.py`) to prevent misconfigured deployments.
 
 ## 🛠️ Cutting-Edge Tech Stack
 
