@@ -24,8 +24,19 @@ function isInBangalore(lat, lng) {
     lng >= BANGALORE_BOUNDS.lngMin && lng <= BANGALORE_BOUNDS.lngMax;
 }
 
-const DARK_TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const DARK_TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>';
+const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY || '';
+// CARTO basemaps now require a `?key=` param (free at carto.com/basemaps/apikey).
+// If no key is configured we fall back to Esri World Dark Gray (no key needed,
+// dark theme to match the command-center UI).
+const USE_CARTO = Boolean(CARTO_API_KEY && CARTO_API_KEY !== 'YOUR_API_KEY_HERE');
+const DARK_TILE_URL = USE_CARTO
+  ? `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`
+  : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+const DARK_TILE_ATTR = USE_CARTO
+  ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+  : 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+// Labels / boundaries overlay for the Esri dark base (same service, also keyless)
+const ESRI_REF_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
 const TOMTOM_API_KEY = import.meta.env.VITE_TOMTOM_API_KEY || '';
 const TOMTOM_TRAFFIC_URL = `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_API_KEY}`;
 
@@ -479,6 +490,10 @@ export default function CommandMap({ hospitalityType, userEmail, backendReady })
         maxBoundsViscosity: 1.0, minZoom: 11, maxZoom: 18,
       });
       L.tileLayer(DARK_TILE_URL, { attribution: DARK_TILE_ATTR, maxZoom: 19 }).addTo(map);
+      if (!USE_CARTO) {
+        // Esri splits base + labels into two services — add labels on top
+        L.tileLayer(ESRI_REF_URL, { maxZoom: 19 }).addTo(map);
+      }
       if (TOMTOM_API_KEY && TOMTOM_API_KEY !== 'YOUR_API_KEY_HERE') {
         L.tileLayer(TOMTOM_TRAFFIC_URL, { maxZoom: 19, opacity: 0.7, zIndex: 1000 }).addTo(map);
       }
